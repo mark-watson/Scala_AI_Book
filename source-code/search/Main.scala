@@ -21,7 +21,7 @@
       ("Atlanta",   "Baltimore"),
       ("Atlanta",   "Chicago"),
       ("Atlanta",   "Denver"),
-      ("Baltimore", "Erie"),
+      ("Baltimore", "Chicago"),
       ("Chicago",   "Erie"),
       ("Denver",    "Fresno"),
       ("Denver",    "Chicago")
