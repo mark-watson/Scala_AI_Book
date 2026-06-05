@@ -15,14 +15,18 @@
       ("Chicago",    310, 200),
       ("Denver",      75, 280),
       ("Erie",       480, 225),
-      ("Fresno",      10, 400)
+      ("Fresno",      10, 400),
+      ("Miami",        20, 800),
+      ("Seattle",     600, 100)
     ),
     edgeDefs = List(
       ("Atlanta",   "Baltimore"),
       ("Atlanta",   "Chicago"),
       ("Atlanta",   "Denver"),
+      ("Atlanta",   "Miami"),
       ("Baltimore", "Chicago"),
       ("Chicago",   "Erie"),
+      ("Chicago",   "Seattle"),
       ("Denver",    "Fresno"),
       ("Denver",    "Chicago")
     )
