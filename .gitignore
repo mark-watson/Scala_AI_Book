@@ -1,0 +1,29 @@
+# Scala CLI / scala-cli
+.scala-build/
+.bsp/
+
+# SBT / Build tools
+target/
+project/target/
+project/project/
+.history/
+.sbt-server-ready
+
+# Mill Build Tool
+out/
+
+# Scala Metals IDE & Bloop
+.metals/
+.bloop/
+metals.sbt
+
+# IDEs / Editors
+.idea/
+*.iml
+.vscode/
+*.ipr
+*.iws
+
+# OS files
+.DS_Store
+Thumbs.db

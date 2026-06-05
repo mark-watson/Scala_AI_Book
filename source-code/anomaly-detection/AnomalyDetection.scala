@@ -1,0 +1,151 @@
+// Copyright 2025-2026 Mark Watson. All rights reserved.
+//> using scala 3.6.4
+
+package anomaly_detection
+
+import scala.util.Random
+import scala.math
+
+case class TestResult(
+    precision: Double,
+    recall: Double,
+    f1: Double,
+    truePositives: Int,
+    falsePositives: Int,
+    trueNegatives: Int,
+    falseNegatives: Int
+)
+
+class AnomalyDetection(
+    val numFeatures: Int,
+    val allExamples: Array[Array[Double]],
+    seed: Long = 42L
+):
+  private val rng = Random(seed)
+  private val outcomeIndex = numFeatures - 1
+  private val SQRT_2_PI = math.sqrt(2.0 * math.Pi)
+
+  // Split datasets (60% training, 28% cross-validation, 12% testing)
+  private val (trainingExamples, crossValidationExamples, testingExamples) =
+    val training = collection.mutable.ArrayBuffer[Array[Double]]()
+    val cv = collection.mutable.ArrayBuffer[Array[Double]]()
+    val test = collection.mutable.ArrayBuffer[Array[Double]]()
+
+    for row <- allExamples do
+      if rng.nextDouble() < 0.6 then
+        // Only keep normal (negative) examples in training, but allow a 10% leak of anomalies
+        if row(outcomeIndex) < 0.5 || rng.nextDouble() < 0.1 then
+          training.append(row)
+      else if rng.nextDouble() < 0.7 then
+        cv.append(row)
+      else
+        test.append(row)
+
+    (training.toArray, cv.toArray, test.toArray)
+
+  val numTraining: Int = trainingExamples.length
+  val numCV: Int = crossValidationExamples.length
+  val numTesting: Int = testingExamples.length
+
+  // Model parameters computed from normal training data
+  private val mu: Array[Double] = Array.ofDim[Double](numFeatures)
+  private val sigmaSquared: Array[Double] = Array.ofDim[Double](numFeatures)
+  private var bestEpsilon: Double = 0.02
+
+  // Initialize mu
+  for nf <- 0 until numFeatures do
+    val sum = trainingExamples.map(_(nf)).sum
+    mu(nf) = sum / numTraining
+
+  def muValues: Array[Double] = mu
+  def sigmaSquaredValues: Array[Double] = sigmaSquared
+  def getBestEpsilon: Double = bestEpsilon
+
+  /** Calculate average feature probability using Gaussian PDF. */
+  private def p(x: Array[Double]): Double =
+    var sum = 0.0
+    // Skip target column at index outcomeIndex
+    for nf <- 0 until numFeatures - 1 do
+      val sigma = math.sqrt(sigmaSquared(nf))
+      val diff = x(nf) - mu(nf)
+      val exponent = -(diff * diff) / (2.0 * sigmaSquared(nf))
+      sum += (1.0 / (SQRT_2_PI * sigma)) * math.exp(exponent)
+    sum / numFeatures
+
+  /** Returns true if the input vector is classified as an anomaly. */
+  def isAnomaly(x: Array[Double]): Boolean =
+    p(x) < bestEpsilon
+
+  /** Tune epsilon hyperparameter using cross-validation data. */
+  def train(): Unit =
+    // Calculate sigmaSquared from training data using the computed mu values
+    for nf <- 0 until numFeatures - 1 do
+      val sum = trainingExamples.map(x => (x(nf) - mu(nf)) * (x(nf) - mu(nf))).sum
+      sigmaSquared(nf) = sum / numTraining
+
+    var bestErrorCount = Double.MaxValue
+    for epsilonLoop <- 0 to 200 do
+      val epsilon = 0.001 + 0.005 * epsilonLoop
+      val errorCount = evaluateEpsilonOnCV(epsilon)
+      if errorCount <= bestErrorCount then
+        bestErrorCount = errorCount
+        bestEpsilon = epsilon
+
+    println(f"\n**** Best epsilon value = $bestEpsilon%.4f")
+
+    // Run final evaluation on test set
+    test(bestEpsilon)
+
+  private def evaluateEpsilonOnCV(epsilon: Double): Double =
+    var errorCount = 0.0
+    for x <- crossValidationExamples do
+      val prob = p(x)
+      val isTargetAnomaly = x(outcomeIndex) > 0.5
+      val isPredictedAnomaly = prob < epsilon
+      if isTargetAnomaly != isPredictedAnomaly then
+        errorCount += 1.0
+    errorCount
+
+  private def test(epsilon: Double): TestResult =
+    var truePositives = 0
+    var falsePositives = 0
+    var trueNegatives = 0
+    var falseNegatives = 0
+
+    for x <- testingExamples do
+      val prob = p(x)
+      val isTargetAnomaly = x(outcomeIndex) > 0.5
+      val isPredictedAnomaly = prob < epsilon
+
+      (isTargetAnomaly, isPredictedAnomaly) match
+        case (true, true)   => truePositives += 1
+        case (false, true)  => falsePositives += 1
+        case (true, false)  => falseNegatives += 1
+        case (false, false) => trueNegatives += 1
+
+    val precision = if truePositives + falsePositives > 0 then
+      truePositives.toDouble / (truePositives + falsePositives)
+    else 0.0
+
+    val recall = if truePositives + falseNegatives > 0 then
+      truePositives.toDouble / (truePositives + falseNegatives)
+    else 0.0
+
+    val f1 = if precision + recall > 0 then
+      2.0 * precision * recall / (precision + recall)
+    else 0.0
+
+    println(
+      s"""
+         | -- best epsilon = $epsilon
+         | -- number of test examples = $numTesting
+         | -- number of false positives = $falsePositives
+         | -- number of true positives = $truePositives
+         | -- number of false negatives = $falseNegatives
+         | -- number of true negatives = $trueNegatives
+         | -- precision = ${f"$precision%.4f"}
+         | -- recall = ${f"$recall%.4f"}
+         | -- F1 = ${f"$f1%.4f"}""".stripMargin
+    )
+
+    TestResult(precision, recall, f1, truePositives, falsePositives, trueNegatives, falseNegatives)
