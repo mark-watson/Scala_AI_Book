@@ -43,7 +43,7 @@ class Board {
 }
 ```
 
-Using a 64-element `Array[Byte]` makes square lookups {$$}O(1){/$$}. We track active piece coordinates in `mutable.Set[Int]` collection lists for each player, allowing us to iterate over all active pieces in {$$}O(1){/$$} time rather than scanning all 64 squares.
+Using a 64-element `Array[Byte]` makes square lookups `O(1)`. We track active piece coordinates in `mutable.Set[Int]` collection lists for each player, allowing us to iterate over all active pieces in `O(1)` time rather than scanning all 64 squares.
 
 ### 2. Move Generation and Precomputed Tables
 
@@ -70,13 +70,13 @@ case class BoardState(
 )
 ```
 
-The matching `unmakeMove` rolls back mutations in {$$}O(1){/$$} time using the snapshot.
+The matching `unmakeMove` rolls back mutations in `O(1)` time using the snapshot.
 
 ### 3. Zobrist Hashing
 
 To identify duplicate positions in the search tree (transpositions), we use **Zobrist Hashing**. Each square-piece combination, active side, castling right, and en passant file is mapped to a unique random 64-bit number. 
 
-When a move is made, we update the board's hash incrementally using bitwise XOR operations, keeping the hash value accurate in {$$}O(1){/$$} time:
+When a move is made, we update the board's hash incrementally using bitwise XOR operations, keeping the hash value accurate in `O(1)` time:
 
 ```scala
 def computeZobristHash(): Long = {
@@ -98,9 +98,9 @@ def computeZobristHash(): Long = {
 
 The AI search in **chess-game/AI.scala** uses the **Negamax** formulation of minimax. Because chess is a zero-sum game, White's gain is Black's loss. Negamax takes advantage of this by using the relation:
 
-{$$}
+```latexmath
 \max(a, b) = -\min(-a, -b)
-{/$$}
+```
 
 This allows us to write a single search loop instead of duplicating code for maximizing and minimizing players:
 

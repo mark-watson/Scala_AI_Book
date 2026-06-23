@@ -10,25 +10,33 @@ All code is in `source-code/anomaly-detection`.
 
 The Gaussian anomaly detection model assumes that normal features follow a normal (Gaussian) distribution. We train the model using mostly normal (non-anomalous) examples.
 
-1. **Parameter Estimation**: For each feature {$$}j{/$$}, we compute the mean {$$}\mu_j{/$$} and variance {$$}\sigma^2_j{/$$} of the training examples:
-   {$$}
+1. **Parameter Estimation**: For each feature `j`, we compute the mean `\mu_j` and variance `\sigma^2_j` of the training examples:
+
+   ```latexmath
    \mu_j = \frac{1}{m} \sum_{i=1}^{m} x_j^{(i)}
-   {/$$}
-   {$$}
+   ```
+
+   ```latexmath
    \sigma^2_j = \frac{1}{m} \sum_{i=1}^{m} (x_j^{(i)} - \mu_j)^2
-   {/$$}
-2. **Probability Computation**: For a new input vector {$$}x{/$$}, we compute the probability {$$}p(x){/$$} using the Gaussian Probability Density Function:
-   {$$}
+   ```
+
+2. **Probability Computation**: For a new input vector `x`, we compute the probability `p(x)` using the Gaussian Probability Density Function:
+
+   ```latexmath
    p(x_j) = \frac{1}{\sqrt{2\pi\sigma_j^2}} e^{-\frac{(x_j - \mu_j)^2}{2\sigma_j^2}}
-   {/$$}
-   The overall probability {$$}p(x){/$$} is the product of the probabilities of all features. In our implementation, we compute the average feature probability to prevent underflow:
-   {$$}
+   ```
+
+   The overall probability `p(x)` is the product of the probabilities of all features. In our implementation, we compute the average feature probability to prevent underflow:
+
+   ```latexmath
    p(x) = \frac{1}{d} \sum_{j=1}^{d} p(x_j)
-   {/$$}
-3. **Thresholding**: We flag an example as an anomaly if its probability is below a threshold parameter {$$}\epsilon{/$$}:
-   {$$}
+   ```
+
+3. **Thresholding**: We flag an example as an anomaly if its probability is below a threshold parameter `\epsilon`:
+
+   ```latexmath
    p(x) < \epsilon
-   {/$$}
+   ```
 
 ## Preprocessing the Data
 
@@ -91,7 +99,7 @@ class AnomalyDetection(
     (training.toArray, cv.toArray, test.toArray)
 ```
 
-The model estimates {$$}\mu{/$$} and {$$}\sigma^2{/$$} parameters from the training set, then tunes the threshold {$$}\epsilon{/$$} by minimizing classification errors on the cross-validation set:
+The model estimates `\mu` and `\sigma^2` parameters from the training set, then tunes the threshold `\epsilon` by minimizing classification errors on the cross-validation set:
 
 ```scala
   /** Calculate average feature probability using Gaussian PDF. */
