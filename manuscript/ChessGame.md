@@ -98,7 +98,7 @@ def computeZobristHash(): Long = {
 
 The AI search in **chess-game/AI.scala** uses the **Negamax** formulation of minimax. Because chess is a zero-sum game, White's gain is Black's loss. Negamax takes advantage of this by using the relation:
 
-```latexmath
+```$
 \max(a, b) = -\min(-a, -b)
 ```
 

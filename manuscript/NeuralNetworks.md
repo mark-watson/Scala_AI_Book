@@ -27,11 +27,17 @@ Here, `w1` represents the weights from the input layer to the hidden layer, and 
 
 We use the standard **Sigmoid** function to introduce non-linearity into the network, allowing it to learn non-linear decision boundaries:
 
-```latexmath
+```$
 S(x) = \frac{1}{1 + e^{-x}}
 ```
 
-In code, we define the sigmoid and its derivative (expressed in terms of the activated value `s = S(z)`):
+Its derivative has a particularly convenient closed form when expressed in terms of the activated value `s = S(z)`$:
+
+```$
+S'(z) = S(z)\,\bigl(1 - S(z)\bigr) = s\,(1 - s)
+```
+
+In code, we define the sigmoid and its derivative:
 
 ```scala
 object NeuralNetwork:
@@ -76,21 +82,21 @@ Backpropagation trains the network by computing the gradient of the error functi
 
 1. **Output Error**: Calculate the difference between targets and outputs, multiplied by the derivative of the activation function:
 
-   ```latexmath
-   \delta_{\text{output}} = (t - o) \cdot S'(o)
-   ```
+```$
+\delta_{\text{output}} = (t - o) \cdot S'(o)
+```
 
-2. **Hidden Error**: Propagate the error backward through the weights `w2` to the hidden layer:
+2. **Hidden Error**: Propagate the error backward through the weights `w_2`$ to the hidden layer:
 
-   ```latexmath
-   \delta_{\text{hidden}} = \left( \sum \delta_{\text{output}} \cdot w_2 \right) \cdot S'(h)
-   ```
+```$
+\delta_{\text{hidden}} = \left( \sum_{o} \delta_{\text{output}} \cdot w_2 \right) \cdot S'(h)
+```
 
-3. **Weight Update**: Create new weight matrices by adding the product of the errors, the activations, and the learning rate:
+3. **Weight Update**: Create new weight matrices by adding the product of the errors, the activations, and the learning rate `\eta`$:
 
-   ```latexmath
-   w_{\text{new}} = w_{\text{old}} + \eta \cdot \delta \cdot \text{activation}
-   ```
+```$
+w_{\text{new}} = w_{\text{old}} + \eta \cdot \delta \cdot \text{activation}
+```
 
 Here is how we implement this functionally in Scala:
 

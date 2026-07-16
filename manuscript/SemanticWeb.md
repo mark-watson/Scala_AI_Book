@@ -59,8 +59,8 @@ One of the key strengths of RDF graphs is the ability to define schema constrain
 
 For example, we can define a rule stating that `containsCity` is a sub-property of `containsPlace`:
 
-```latexmath
-\text{containsCity} \sqsubseteq \text{containsPlace}
+```$
+\mathit{containsCity} \sqsubseteq \mathit{containsPlace}
 ```
 
 If the data contains the fact `(London, containsCity, Westminster)`, an ontological model will automatically infer the fact `(London, containsPlace, Westminster)`.

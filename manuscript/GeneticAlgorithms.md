@@ -124,11 +124,11 @@ The evolution of a single generation consists of calculating fitness, sorting th
 
 We demonstrate our framework by searching for the maximum of the non-linear function:
 
-```latexmath
-f(x) = \sin(x) \sin(0.4x) \sin(3x)
+```$
+f(x) = \sin(x)\,\sin(0.4\,x)\,\sin(3\,x)
 ```
 
-on the interval `[0, 10]`. We represent `x` using a 10-gene chromosome, giving us `2^{10} = 1024` possible values.
+on the interval `[0, 10]`$. We represent `x`$ using a 10-gene chromosome, giving us `2^{10} = 1024`$ possible values.
 
 We implement the optimization in `SinOptimization`:
 
@@ -199,4 +199,4 @@ Final population (top 5):
   Chromosome 4: fitness=0.904586  x=5.771484
 ```
 
-Through natural selection and crossover, the population quickly converges on `x \approx 5.75`, which is the global maximum of the target function in the range `[0, 10]`.
+Through natural selection and crossover, the population quickly converges on `x \approx 5.75`$, which is the global maximum of the target function in the range `[0, 10]`$.
