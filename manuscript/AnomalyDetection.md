@@ -6,6 +6,12 @@ In this chapter, we implement a Gaussian Probability Density Function (PDF) anom
 
 All code is in `source-code/anomaly-detection`.
 
+## Why Anomaly Detection, Not Classification
+
+At first glance this looks like a classification problem: sort cell samples into benign and malignant. So why not train a classifier as we did with the neural network? The answer is the shape of the data you usually have. Anomalies are **rare and varied**. In fraud detection you may see millions of normal transactions and only a handful of frauds, and next month's fraud may look nothing like last month's. A supervised classifier needs many labeled examples of every class, and it learns only the kinds of anomalies it has already seen.
+
+Anomaly detection turns the problem around. Instead of learning what an anomaly looks like, it learns what **normal** looks like, then flags anything that does not fit. We train almost entirely on normal examples, build a model of their distribution, and mark any new point with low probability under that model as an anomaly. This is a form of **semi-supervised** learning, sometimes called *novelty detection*: the training set is (mostly) one class, and the model detects departures from it. That is exactly why it suits fraud, intrusion detection, manufacturing defects, and rare-disease screening, where the "normal" class is abundant and the anomalies are few and unpredictable.
+
 ## How Gaussian Anomaly Detection Works
 
 The Gaussian anomaly detection model assumes that normal features follow a normal (Gaussian) distribution. We train the model using mostly normal (non-anomalous) examples.
@@ -20,27 +26,33 @@ The Gaussian anomaly detection model assumes that normal features follow a norma
 \sigma_j^2 = \frac{1}{m} \sum_{i=1}^{m} \left( x_j^{(i)} - \mu_j \right)^2
 ```
 
-2. **Probability Computation**: For a new input vector `x`$, we compute the probability `p(x)`$ using the Gaussian Probability Density Function:
+These are not arbitrary formulas. They are the **maximum likelihood estimates** for a Gaussian: given the training data, they are the mean and variance that make that data most probable under a normal distribution. Note that the variance divides by `m`$ rather than `m - 1`$, which is the maximum likelihood form rather than the unbiased sample variance. For a training set of hundreds of examples the difference is negligible.
+
+2. **Probability Computation**: For a new input vector `x`$, we score each feature with the Gaussian Probability Density Function, which measures how likely that feature value is under the fitted bell curve:
 
 ```$
 p(x_j) = \frac{1}{\sqrt{2\pi\sigma_j^2}} \, \exp\!\left( -\frac{(x_j - \mu_j)^2}{2\sigma_j^2} \right)
 ```
 
-   The overall probability `p(x)`$ is the product of the probabilities of all features. In our implementation, we compute the average feature probability to prevent underflow:
+   The textbook model then assumes the features are **independent** and multiplies the per-feature probabilities to get a joint probability `p(x) = \prod_j p(x_j)`$. That independence assumption is rarely true, but the model is robust enough that it works well in practice. Multiplying many probabilities together drives the product toward zero and risks numeric **underflow**, so our implementation instead averages the per-feature probabilities:
 
 ```$
 p(x) = \frac{1}{d} \sum_{j=1}^{d} p(x_j)
 ```
 
-3. **Thresholding**: We flag an example as an anomaly if its probability is below a threshold parameter `\epsilon`$:
+   This average is no longer a true joint probability, but it preserves the property we care about: a sample that sits far from the norm on its features gets a low score, and a normal sample gets a high one. It trades theoretical purity for numeric stability, which is a sensible engineering choice for a from-scratch detector.
+
+3. **Thresholding**: We flag an example as an anomaly if its score falls below a threshold parameter `\epsilon`$:
 
 ```$
 p(x) < \epsilon
 ```
 
+   The value of `\epsilon`$ sets the trade-off between catching anomalies and raising false alarms. A high `\epsilon`$ flags more samples (higher recall, more false positives); a low `\epsilon`$ flags fewer (higher precision, more misses). We do not guess it; we tune it, as shown below.
+
 ## Preprocessing the Data
 
-Real-world data rarely follows a perfect Gaussian distribution. To improve model accuracy, we preprocess the features in **anomaly-detection/Main.scala** by applying a logarithmic transform to make the features look more Gaussian, followed by min-max scaling:
+The model assumes each feature is Gaussian, but real-world data rarely obliges. The Wisconsin features are integer scores from 1 to 10 and are skewed toward the low end, not bell-shaped at all. Feeding skewed data to a Gaussian model weakens it, so we reshape the features first. A **logarithmic transform** compresses a long right tail and pulls a skewed distribution closer to symmetric, after which **min-max scaling** maps every feature into `[0, 1]`$ so no single feature dominates the probability by virtue of its raw scale. We do this in **anomaly-detection/Main.scala**:
 
 ```scala
   val trainingData = (for line <- bufferedSource.getLines() yield
@@ -67,9 +79,11 @@ Real-world data rarely follows a perfect Gaussian distribution. To improve model
   ).toArray
 ```
 
+The dataset is the classic Wisconsin Breast Cancer set from the UCI repository: nine cell-measurement features (clump thickness, cell-size uniformity, and so on) plus an outcome column labeling each sample benign or malignant. The raw outcome uses 2 for benign and 4 for malignant, and the last line remaps it to 0 and 1 so we can treat malignant samples as the anomalies to detect. The small `+ 1.2` offset inside the logarithm keeps its argument safely positive.
+
 ## Implementing Anomaly Detection
 
-We encapsulate the model inside the `AnomalyDetection` class. When the class is instantiated, it splits the dataset into training (60%), cross-validation (28%), and testing (12%) partitions, keeping training data mostly free of anomalies:
+We encapsulate the model inside the `AnomalyDetection` class. When the class is instantiated, it splits the dataset into three partitions, and the split is deliberately skewed to match the semi-supervised setup: training keeps almost only normal samples, while cross-validation and testing get a realistic mix of both classes:
 
 ```scala
 class AnomalyDetection(
@@ -99,7 +113,9 @@ class AnomalyDetection(
     (training.toArray, cv.toArray, test.toArray)
 ```
 
-The model estimates `\mu`$ and `\sigma^2`$ parameters from the training set, then tunes the threshold `\epsilon`$ by minimizing classification errors on the cross-validation set:
+The three-way split follows standard machine learning methodology, adapted for anomaly detection. The **training set** estimates `\mu`$ and `\sigma^2`$ and holds mostly normal data, so the model learns the shape of "normal". The **cross-validation set** contains labeled anomalies and is used to tune the one hyperparameter `\epsilon`$. The **test set**, untouched during tuning, gives an honest final measure of performance. Keeping tuning and testing separate is what stops us from fooling ourselves: a threshold chosen to look good on the test set would report an optimistic score that new data would not match.
+
+The model estimates `\mu`$ and `\sigma^2`$ from the training set, then tunes the threshold `\epsilon`$ by scanning a range of values and keeping the one that misclassifies the fewest cross-validation examples:
 
 ```scala
   /** Calculate average feature probability using Gaussian PDF. */
@@ -131,6 +147,32 @@ The model estimates `\mu`$ and `\sigma^2`$ parameters from the training set, the
     println(f"\n**** Best epsilon value = $bestEpsilon%.4f")
     test(bestEpsilon)
 ```
+
+The `train` method is a simple **grid search** over `\epsilon`$: it tries 201 evenly spaced thresholds and keeps whichever one makes the fewest mistakes on the cross-validation data. This brute-force scan is cheap because scoring the CV set is fast, and it avoids any assumption about where the best threshold lies.
+
+### Measuring Success: Precision, Recall, and F1
+
+Anomalies are rare, so plain **accuracy** is a trap. If only 5% of samples are malignant, a lazy detector that calls everything benign scores 95% accuracy while catching zero cancers. We need metrics that focus on the rare positive class. Every prediction falls into one of four cells of a **confusion matrix**, which the code counts with a clean pattern match:
+
+```scala
+      (isTargetAnomaly, isPredictedAnomaly) match
+        case (true, true)   => truePositives += 1
+        case (false, true)  => falsePositives += 1
+        case (true, false)  => falseNegatives += 1
+        case (false, false) => trueNegatives += 1
+```
+
+From these four counts we compute three standard scores. **Precision** asks: of the samples we flagged, how many were truly anomalies? **Recall** asks: of the truly anomalous samples, how many did we catch? They pull in opposite directions, so we summarize them with the **F1 score**, their harmonic mean, which stays low unless both are high:
+
+```$
+\text{precision} = \frac{TP}{TP + FP}, \quad \text{recall} = \frac{TP}{TP + FN}
+```
+
+```$
+F_1 = \frac{2 \cdot \text{precision} \cdot \text{recall}}{\text{precision} + \text{recall}}
+```
+
+In a medical screen the balance matters: a false negative (missing a cancer) is far worse than a false positive (a needless follow-up test), so in practice you might tune `\epsilon`$ to favor recall. The F1 score gives us a single, honest number to compare against.
 
 ## Running the Anomaly Detector
 
@@ -179,4 +221,4 @@ Model parameters:
   num features = 10
 ```
 
-With an F1 score of over 88% on the test set, the Gaussian PDF anomaly detector successfully identifies malignant cell samples as anomalies based solely on their deviation from normal cell configurations.
+The confusion matrix in the output tells the full story. Of 108 test samples the detector caught 35 of the 39 malignant cases (recall 0.90) while raising only 5 false alarms among 69 benign cases (precision 0.88). With an F1 score over 88%, the Gaussian PDF anomaly detector successfully identifies malignant cell samples as anomalies based solely on their deviation from normal cell configurations. It never learns what cancer is; it learns what healthy cells look like and reports the samples that do not match.

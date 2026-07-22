@@ -4,9 +4,15 @@ Natural Language Processing (NLP) enables computers to analyze, understand, and 
 
 All code is in `source-code/nlp`.
 
+## The Classic NLP Pipeline
+
+Before large language models, NLP systems processed text in a **pipeline**: a chain of stages where each stage adds a layer of annotation the next stage can use. Raw text becomes a list of tokens, tokens get grammatical tags, tagged tokens get grouped into names and phrases, and so on up to full parsing and meaning. We build the first three stages of that pipeline here. Each stage is simple on its own, but together they turn a plain string into structured facts about who and what a sentence mentions.
+
+It is worth knowing where this fits against modern methods. Today's transformer models learn these steps implicitly from huge corpora and rarely expose them. The classic pipeline still matters for three reasons: it is transparent, so you can see exactly why the system made a decision; it is cheap, running in milliseconds with no model to load; and it needs no training data, only dictionaries and rules. For focused tasks on a known domain, a rule-based pipeline is often the right tool, and building one teaches the structure of language that the neural black box hides.
+
 ## Tokenization
 
-Tokenization is the process of breaking a stream of text into individual words, numbers, and punctuation marks (tokens). 
+Tokenization is the process of breaking a stream of text into individual words, numbers, and punctuation marks (tokens). It looks trivial until you try it. Splitting on spaces alone mishandles "don't", "U.S.A.", "3.14", "end.", and a comma with no trailing space. A good tokenizer has to decide when a period ends a sentence and when it marks an abbreviation or a decimal point, and it has to peel trailing punctuation off a word without destroying it.
 
 In **nlp/Tokenizer.scala**, we implement a tokenizer using Java's standard `StreamTokenizer`, cleaning control characters and splitting trailing punctuation into separate tokens:
 
@@ -46,13 +52,15 @@ object Tokenizer:
     words.toList
 ```
 
+The design splits trailing punctuation into its own token so that "hill." becomes `hill` followed by `.`. This matters for the stages that follow: the tagger and the entity extractor want clean words, and they treat punctuation as its own signal. Note that this is **word-level** tokenization. Modern LLMs instead use **subword** tokenization (schemes like Byte Pair Encoding), which split rare words into reusable fragments so the model can handle any input with a fixed vocabulary. Word-level tokens are the natural choice here because the later stages look words up in dictionaries.
+
 ## Part-of-Speech Tagging
 
-Part-of-Speech (POS) tagging assigns a grammatical tag (such as noun, verb, adjective, or adverb) to each token based on its definition and context.
+Part-of-Speech (POS) tagging assigns a grammatical tag (such as noun, verb, adjective, or adverb) to each token. The tags here follow the **Penn Treebank** tagset, the de facto standard in English NLP, where `NN` is a singular noun, `NNS` a plural noun, `VB` a base verb, `VBD` a past-tense verb, `VBG` a gerund, `VBN` a past participle, `DT` a determiner, `JJ` an adjective, `RB` an adverb, and `CD` a cardinal number.
 
-We implement this in **nlp/FastTag.scala**. The tagger first loads a dictionary of word-tag mappings from `data/lexicon.txt` and performs a lookup for each token. If a word is not found, it defaults to `NN` (noun) or `NN^` (single letter). 
+Tagging is hard because words are **ambiguous**. "Rolling" can be a verb or an adjective, "down" can be a preposition or a particle, and "book" can be a noun or a verb. The right tag depends on context. Two broad approaches emerged historically: **statistical** taggers, which learn tag probabilities from a labeled corpus and pick the most likely tag sequence with an algorithm like Viterbi, and **rule-based** taggers. The most influential of the latter is the **Brill tagger** (Eric Brill, 1992), which starts by giving every word its most common tag, then applies an ordered list of transformation rules that fix tags based on the surrounding context. Our tagger is a hand-built version of exactly that idea.
 
-Next, it applies Brill-style transformational rules to correct tags based on suffix matching and neighboring tokens:
+We implement it in **nlp/FastTag.scala**. The tagger first loads a dictionary of word-tag mappings from `data/lexicon.txt` and performs a lookup for each token. If a word is not found, it defaults to `NN` (noun) or `NN^` (single letter):
 
 ```scala
 class FastTag(dataPath: String = "data/lexicon.txt"):
@@ -68,7 +76,14 @@ class FastTag(dataPath: String = "data/lexicon.txt"):
         case None =>
           if word.length == 1 then ret.append(word + "^")
           else ret.append("NN")
+```
 
+Two choices in this first pass reflect real statistical facts about English. The lexicon stores an array of possible tags per word, and we take `tags(0)`, the most frequent tag for that word, as the starting guess. For unknown words we default to `NN`, because nouns are the largest open word class and most words a fixed dictionary misses (names, technical terms, new coinages) turn out to be nouns. This "most common tag" baseline alone is right about 90% of the time on typical text, and the rules that follow clean up the rest.
+
+Next, it applies Brill-style transformational rules to correct tags based on suffix matching and neighboring tokens:
+
+```scala
+  ...
     val result = ret.toArray
     // Apply transformational rules
     for i <- words.indices do
@@ -102,11 +117,13 @@ class FastTag(dataPath: String = "data/lexicon.txt"):
     result.toList
 ```
 
+The rules draw on the two signals a tagger can cheaply exploit. Some use **context**: rule 1 says a word right after a determiner ("the") is almost certainly a noun, not a verb, so "the book" tags `book` as a noun even though `book` can be a verb. Others use **morphology**, the shape of the word itself: English suffixes strongly signal category, so `-ly` marks an adverb (rule 4), `-ed` a past participle (rule 3), `-al` an adjective (rule 5), and `-ing` a gerund. The rules run in order and each may overwrite the last, so their sequence encodes a small decision procedure. This handful of rules captures a surprising amount of English grammar for the effort.
+
 ## Named Entity Extraction
 
-Named Entity Recognition (NER) identifies proper names, places, and organizations in text.
+Named Entity Recognition (NER) identifies proper names, places, and organizations in text. Two approaches dominate. Statistical and neural systems (conditional random fields, then transformers) learn to spot entities from labeled examples. The older approach, which we use, combines **gazetteers**, large dictionaries of known names, with grammar rules about how name parts combine. Gazetteer methods are precise on names they know and need no training, but they miss names absent from their lists and can stumble on ambiguity, since "Washington" is both a person and a place.
 
-In **nlp/ExtractNames.scala**, we implement a rule-based name and place extractor. The class loads gazetteers (large lists of first names, last names, prefix titles like "President", and place names) and scans the text matching n-grams (from 1-grams to 5-grams) to extract human and place names:
+In **nlp/ExtractNames.scala**, we load gazetteers (lists of first names, last names, prefix titles like "President", and place names) and check whether a run of words forms a valid name by matching it against a small grammar:
 
 ```scala
 class ExtractNames(dataDir: String = "data/"):
@@ -129,7 +146,11 @@ class ExtractNames(dataDir: String = "data/"):
     ...
 ```
 
-The scores and occurrences of extracted entities are compiled using a helper `ScoredList` class.
+Each branch is a grammar rule for a name of a given length. A two-word name is a first name followed by a last name, or a title followed by a last name ("President Bush"). A three-word name adds patterns for a middle name or a title with an initial. The higher-length branches (not shown) handle middle initials, where the code checks `words(i).length == 1` and a following `"."`, so "George W. Bush" parses as one person. This is a compact **named-entity grammar** expressed directly as Scala boolean logic.
+
+The scanning strategy matters as much as the grammar. In `getProperNames`, the extractor slides through the token list and tries the **longest match first**: it tests for a five-word name, then four, then three, and so on, advancing past a whole entity once it matches. This greedy longest-match rule (sometimes called maximal munch) is what stops "President George W. Bush" from being broken into a title plus a separate two-word name. Because it consumes the matched span before moving on, each entity is found once and at its fullest extent.
+
+The scores and occurrences of extracted entities are compiled using a helper `ScoredList` class, which deduplicates repeated mentions and counts how often each entity appears, so a name mentioned three times is reported once with a count of three.
 
 ## Running the NLP Demo
 
@@ -180,4 +201,4 @@ Human names extracted: President George W. Bush:1, George Bush:1, Mary Smith:1, 
 Place names extracted: London:1, England:1, Paris:1, France:1, Mexico:1, Moscow:1
 ```
 
-The POS tagger successfully handles verbs and adverbs (e.g. `rolling/VBG`, `quickly/RB`), and the entity extractor matches the complex prefixes, middle initials, and locations.
+The tagger output shows the rules at work. `rolling` becomes `VBG` from its `-ing` suffix, `quickly` becomes `RB` from its `-ly` suffix, and `hill` after the determiner `the` stays a noun. The entity extractor shows longest-match in action: it reports "President George W. Bush" as a single four-token person rather than splitting it, and it correctly separates the run-together place names into London, England, Paris, France, Mexico, and Moscow. Neither stage uses any machine learning; both run on dictionaries and grammar alone, which is exactly what makes their decisions easy to inspect and adjust.

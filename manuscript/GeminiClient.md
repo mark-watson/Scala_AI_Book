@@ -6,9 +6,17 @@ In this chapter, we implement a Google Gemini REST API client in Scala 3 using t
 
 All code is in `source-code/gemini-client`.
 
+## How Large Language Models Work
+
+To use an LLM well it helps to know what one is. Modern LLMs are **transformer** networks, the architecture introduced by Vaswani and colleagues in the 2017 paper "Attention Is All You Need". The transformer's core mechanism is **self-attention**, which lets the model weigh how much each word in the input relates to every other word, so it can track meaning across long passages. This is a direct descendant of the small neural network we built by hand earlier in the book, scaled up by many orders of magnitude and trained on a large fraction of the public internet.
+
+An LLM is trained on one deceptively simple task: predict the next **token**. A token is a chunk of text, usually a common word or a word fragment, produced by the kind of subword tokenizer mentioned in the NLP chapter. Given a sequence of tokens, the model outputs a probability distribution over the next token. To generate text it works **autoregressively**: it predicts one token, appends it to the input, predicts the next, and repeats. A setting called **temperature** controls how the next token is drawn from the distribution: near zero the model almost always takes the most likely token and answers deterministically, while higher values sample more freely and produce more varied, creative text.
+
+Two more ideas explain the behavior you will see. The amount of text a model can consider at once is its **context window**, measured in tokens; everything the model knows about your request must fit inside it. And a raw model trained only to predict text is not yet helpful, so providers add **instruction tuning** and reinforcement learning from human feedback to teach it to follow instructions and answer politely. The Gemini model we call has already been through all of this; our job is only to send it tokens and read back what it generates.
+
 ## Project Setup and Dependencies
 
-Instead of using a heavy SDK, we build our client directly on top of Gemini's HTTP POST endpoints. We declare our dependencies at the top of **gemini-client/GeminiClient.scala** using `scala-cli` directive syntax:
+Instead of using a heavy SDK, we build our client directly on top of Gemini's HTTP POST endpoints. This keeps the moving parts visible: an LLM API, at bottom, is just an HTTP endpoint that accepts a JSON request and returns a JSON response. We declare our dependencies at the top of **gemini-client/GeminiClient.scala** using `scala-cli` directive syntax:
 
 ```scala
 //> using scala 3.6.4
@@ -16,9 +24,11 @@ Instead of using a heavy SDK, we build our client directly on top of Gemini's HT
 //> using dep com.lihaoyi::ujson:4.4.3
 ```
 
+`requests` is a small Scala HTTP client and `ujson` is a small JSON library, both from the lihaoyi ecosystem. Together they are all we need to talk to any REST-based LLM, which is why the OpenAI and Ollama clients in the next two chapters reuse the same two dependencies.
+
 ## Implementing the Gemini Client
 
-The client connects to the `generativelanguage.googleapis.com` API. It reads the API key from the `GOOGLE_API_KEY` environment variable.
+The client connects to the `generativelanguage.googleapis.com` API. It reads the API key from the `GOOGLE_API_KEY` environment variable, which is the standard way to keep secrets out of source code.
 
 We define two completion methods: `getCompletion` for standard prompts, and `getCompletionWithSearch` which instructs the model to ground its response using live Google Search results:
 
@@ -95,9 +105,15 @@ object GeminiClient:
     data("candidates")(0)("content")("parts")(0)("text").str
 ```
 
+The request body shows the shape of Gemini's API. A request is a list of `contents`, each holding a list of `parts`, and each part carries a piece of `text`. This nesting looks heavy for a single text prompt, but it exists because Gemini is **multimodal**: a part can hold an image or audio clip as easily as text, so the same structure serves every input type. The response mirrors it. The model returns a list of `candidates` (alternative completions), and we reach into the first candidate's content to pull out the generated text with `data("candidates")(0)("content")("parts")(0)("text").str`. Note also that the call is **stateless**: the API remembers nothing between requests, so a multi-turn conversation must resend the whole history each time. We check the HTTP status and raise an `IOException` on anything but 200, because API calls fail for real reasons: a bad key, a rate limit, or a network drop.
+
+### Grounding with Google Search
+
+The second method adds a `tools` array containing `google_search`, and this small change addresses one of the biggest weaknesses of LLMs. A model's knowledge is frozen at its training **cutoff** and it can state false things fluently, a failure called **hallucination**. **Grounding** fixes both: the model runs a live Google Search, reads the results, and bases its answer on them instead of on memory alone. This is the same retrieve-then-generate idea behind Retrieval-Augmented Generation (RAG) and the same pattern as the Knowledge Graph Navigator, where we fetched facts from DBpedia before answering. Turning it on is as simple as declaring the tool; Gemini decides when to search and folds the results into its reply.
+
 ## Running the Demos
 
-In **gemini-client/Main.scala**, we run a standard prompt explaining Scala concepts, and a real-time news query grounded in Google Search:
+In **gemini-client/Main.scala**, we run a standard prompt explaining Scala concepts, and a real-time news query grounded in Google Search. The contrast between the two calls is the point: the first tests the model's trained knowledge, the second tests its ability to fetch current facts:
 
 ```scala
 package gemini_client
@@ -151,3 +167,5 @@ According to recent reports on space exploration this week:
 1. NASA's James Webb Space Telescope detected a new super-Earth atmosphere...
 2. SpaceX successfully launched its 11th Starlink batch of the month and prepared for the next Starship flight test...
 ```
+
+The two responses come from the same model through the same code, yet they draw on different sources. The first answer about pattern matching comes straight from the model's trained weights, knowledge baked in during pretraining. The second answer about this week's launches could not possibly live in the weights, since the events happened after training; it comes from the live search results the grounding tool fetched. That difference, between what a model knows and what it can look up, is the single most important idea for building reliable LLM applications, and the rest of the LLM chapters build on it.

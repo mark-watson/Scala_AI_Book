@@ -6,9 +6,17 @@ In this chapter, we implement a Scala 3 client to query a local Ollama instance 
 
 All code is in `source-code/ollama-client`.
 
+## Why Run a Model Locally
+
+The last two chapters sent every prompt to a company's servers. Running the model on your own machine changes the trade-offs in ways worth understanding before you write the code.
+
+The case **for** local inference is strong. Your data never leaves the machine, which matters for medical records, legal documents, or proprietary source code you cannot send to a third party. There is no per-token bill, so you can process millions of words for the cost of electricity. It works with no network, and it frees you from rate limits and from a provider changing or retiring a model underneath you. The case **against** is equally real: you are limited to models small enough to fit your hardware, inference is slower than a data center's, especially without a GPU, and the very largest, most capable models remain cloud-only.
+
+Local inference is possible at all because of **open-weight** models. Where GPT-4o and Gemini are reachable only through an API, models such as Mistral, Llama, and Gemma publish their trained weights for anyone to download and run. ("Open weight" is a weaker claim than "open source": the weights are free to use, but the training data and code usually are not.) The second enabler is **quantization**. A model's weights are trained at high numeric precision, but you can round them to fewer bits, often 4, which shrinks the model's memory footprint several-fold and speeds up inference, at a small cost in quality. Quantization is what lets a model with billions of parameters run on a laptop, and Ollama distributes models in the quantized GGUF format designed for exactly this.
+
 ## The Ollama REST Client
 
-Ollama exposes a REST API on `http://localhost:11434`. We query the `/api/generate` endpoint. Because local models run on consumer hardware, model inference can take time. We configure a generous read timeout of 3 minutes (`180000` milliseconds) inside **ollama-client/OllamaClient.scala**:
+Ollama runs as a background server that downloads models, loads them into memory, and exposes a REST API on `http://localhost:11434`. We query the `/api/generate` endpoint. Because local models run on consumer hardware, model inference can take time, and the first request must also load the model into memory. We configure a generous read timeout of 3 minutes (`180000` milliseconds) inside **ollama-client/OllamaClient.scala**:
 
 ```scala
 //> using scala 3.6.4
@@ -20,7 +28,7 @@ package ollama_client
 import java.io.IOException
 
 object OllamaClient:
-  private val DEFAULT_MODEL = "mistral"
+  private val DEFAULT_MODEL = "gemma4:12b"
   private val DEFAULT_BASE_URL = "http://localhost:11434"
 
   def getCompletion(
@@ -53,6 +61,8 @@ object OllamaClient:
     data("response").str
 ```
 
+The client is the simplest of the three. It needs no API key, because the server runs on your own machine, and it points at `localhost` instead of a remote host. The payload names the model, the prompt, and one important flag: `stream`. Recall that an LLM generates text one token at a time. With streaming enabled, the server sends each token the instant it is produced, which lets a chat interface show the answer appearing word by word. We set `stream` to `false` so the server instead buffers the whole generation and returns it as a single JSON object, which is simpler to parse in a batch program like ours. We then read the completed text from the `response` field. The long read timeout reflects the reality of local inference: the first call may spend a minute loading a multi-gigabyte model from disk before it generates a single token.
+
 ## Running the Ollama Demo
 
 In **ollama-client/Main.scala**, we take the model name as an optional command-line argument (defaulting to `gemma4:12b`) and request a translation:
@@ -81,7 +91,7 @@ package ollama_client
       println("Please verify that Ollama is running and that the model is pulled ('ollama pull gemma4:12b').")
 ```
 
-To run this demo, make sure Ollama is installed and running locally, pull the model, and execute the Scala client:
+Taking the model name as an argument makes the client easy to point at whatever model you have pulled, so you can compare a small fast model against a larger, slower, more capable one on the same prompt. To run this demo, make sure Ollama is installed and running locally, pull the model, and execute the Scala client:
 
 ```bash
 # In your terminal
@@ -105,3 +115,5 @@ Sending request to local Ollama (ensure it is running via 'ollama run')...
 Response:
 Bonjour, comment allez-vous ?
 ```
+
+This is the same translation task the OpenAI chapter ran, producing an equally correct result, but no data left the machine and no request crossed the network. That is the whole point of local inference. The three LLM chapters give you the full spectrum: a frontier cloud model with live grounding, the standard chat API that most providers share, and a private model on your own hardware. Which you choose is an engineering decision about capability, cost, privacy, and control, and knowing all three lets you make it deliberately.
