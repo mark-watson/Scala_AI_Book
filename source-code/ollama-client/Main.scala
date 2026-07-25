@@ -7,7 +7,7 @@ package ollama_client
   println("Ollama Local LLM Client Demo")
   println("=" * 50)
 
-  val model = if args.nonEmpty then args(0) else "gemma4:12b"
+  val model = if args.nonEmpty then args(0) else "gemma4:12b-it-qat"
   val prompt = "Translate the following English text to French: 'Hello, how are you?'"
   
   println(s"Using model: $model")
