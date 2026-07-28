@@ -1,6 +1,6 @@
 // Copyright 2025-2026 Mark Watson. All rights reserved.
 //> using scala 3.6.4
-//> using dep org.apache.jena:jena-arq:5.2.0
+//> using dep org.apache.jena:jena-arq:6.1.0
 
 package semantic_web
 
