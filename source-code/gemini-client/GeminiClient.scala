@@ -13,9 +13,6 @@ object GeminiClient:
   private val API_HOST = "generativelanguage.googleapis.com"
 
   def getCompletion(prompt: String, model: String = DEFAULT_MODEL): String =
-    val apiKey = getApiKey()
-    val url = s"https://$API_HOST/v1beta/models/$model:generateContent?key=$apiKey"
-
     val payload = ujson.Obj(
       "contents" -> ujson.Arr(
         ujson.Obj(
@@ -25,22 +22,9 @@ object GeminiClient:
         )
       )
     ).render()
-
-    val response = requests.post(
-      url = url,
-      headers = Map("Content-Type" -> "application/json"),
-      data = payload
-    )
-
-    if response.statusCode != 200 then
-      throw IOException(s"Gemini API request failed (HTTP ${response.statusCode}): ${response.text()}")
-
-    parseResponse(response.text())
+    postGenerate(model, payload)
 
   def getCompletionWithSearch(prompt: String, model: String = DEFAULT_MODEL): String =
-    val apiKey = getApiKey()
-    val url = s"https://$API_HOST/v1beta/models/$model:generateContent?key=$apiKey"
-
     val payload = ujson.Obj(
       "contents" -> ujson.Arr(
         ujson.Obj(
@@ -53,10 +37,23 @@ object GeminiClient:
         ujson.Obj("google_search" -> ujson.Obj())
       )
     ).render()
+    postGenerate(model, payload)
+
+  private def postGenerate(model: String, payload: String): String =
+    val apiKey = getApiKey()
+    val url = s"https://$API_HOST/v1beta/models/$model:generateContent"
+
+    if System.getenv("GEMINI_DEBUG") != null then
+      val prefix = apiKey.take(3)
+      System.err.println(s"[gemini-client] POST $url")
+      System.err.println(s"[gemini-client] sending key via x-goog-api-key header (prefix=$prefix, length=${apiKey.length})")
 
     val response = requests.post(
       url = url,
-      headers = Map("Content-Type" -> "application/json"),
+      headers = Map(
+        "Content-Type" -> "application/json",
+        "x-goog-api-key" -> apiKey
+      ),
       data = payload
     )
 
