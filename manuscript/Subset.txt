@@ -11,3 +11,4 @@ GeminiClient.md
 OpenAIClient.md
 OllamaClient.md
 AgentScopeGemini.md
+neural-symbolic-graph.md
