@@ -12,6 +12,11 @@ object GeminiClient:
   private val DEFAULT_MODEL = "gemini-2.5-flash"
   private val API_HOST = "generativelanguage.googleapis.com"
 
+  // gemini-2.5-flash thinks before answering, and search-grounded calls take
+  // longer still, so both can exceed the requests-scala 10s default.
+  private val CONNECT_TIMEOUT_MS = 30000
+  private val READ_TIMEOUT_MS = 120000
+
   def getCompletion(prompt: String, model: String = DEFAULT_MODEL): String =
     val payload = ujson.Obj(
       "contents" -> ujson.Arr(
@@ -54,7 +59,9 @@ object GeminiClient:
         "Content-Type" -> "application/json",
         "x-goog-api-key" -> apiKey
       ),
-      data = payload
+      data = payload,
+      connectTimeout = CONNECT_TIMEOUT_MS,
+      readTimeout = READ_TIMEOUT_MS
     )
 
     if response.statusCode != 200 then
