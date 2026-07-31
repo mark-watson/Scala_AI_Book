@@ -10,5 +10,6 @@ KnowledgeGraphNavigator.md
 GeminiClient.md
 OpenAIClient.md
 OllamaClient.md
+text-adventure.md
 AgentScopeGemini.md
 neural-symbolic-graph.md
