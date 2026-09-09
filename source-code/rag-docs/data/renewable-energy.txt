@@ -1,0 +1,11 @@
+Solar power turns sunlight into electricity with no exhaust. A home
+array with a small battery can run lights, heat pumps, and an electric
+car charger through the night. Each kilowatt hour from rooftop solar
+replaces a kilowatt hour from gas or coal plants, which cuts carbon
+dioxide output. Net metering lets homes sell spare power back to the
+grid on sunny days. Install cost has dropped for ten straight years,
+so payback now lands near seven years in most US states.
+
+Wind farms add night power when solar fades. Grid batteries store
+spare noon solar for the evening peak. Together, solar, wind, and
+storage let towns retire peaker plants that once ran on fossil gas.

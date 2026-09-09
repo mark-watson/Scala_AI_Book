@@ -1,5 +1,34 @@
+# scala-cli build output
+.scala-build/
+.bsp/
+
+# Metals / Bloop IDE output
+.metals/
+.bloop/
+
+# Compiled classes shipped loose
+*.class
+*.tasty
+
+# SQLite test and demo databases
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Local jars dropped in for ad hoc runs
+*.jar
+
+# Editor and merge backups
 *~
-.claude
-.bsp
-.scala-build
+*.bak
+*.orig
+*.rej
+
+# Agent and tool scratch dirs (see clean target in Makefile)
+.claude/
+.opencode*/
+.pi*/
+
+# Logs
 *.log

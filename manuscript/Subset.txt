@@ -13,3 +13,12 @@ OllamaClient.md
 text-adventure.md
 AgentScopeGemini.md
 neural-symbolic-graph.md
+Probability.md
+SymbolicMath.md
+RagDocs.md
+BraveSearch.md
+LlmTools.md
+LlmCache.md
+MoreModelClients.md
+OllamaVision.md
+MicroTransformer.md

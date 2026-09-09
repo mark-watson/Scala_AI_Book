@@ -17,3 +17,12 @@ This table maps each chapter file in `./manuscript` to its source code example d
 | `manuscript/OpenAIClient.md` | `source-code/openai-client` |
 | `manuscript/OllamaClient.md` | `source-code/ollama-client` |
 | `manuscript/AgentScopeGemini.md` | `source-code/AgentScope_gemini` |
+| `manuscript/Probability.md` | `source-code/probability` |
+| `manuscript/SymbolicMath.md` | `source-code/symbolic-math` |
+| `manuscript/RagDocs.md` | `source-code/rag-docs` |
+| `manuscript/BraveSearch.md` | `source-code/brave-search` |
+| `manuscript/LlmTools.md` | `source-code/llm-tools` |
+| `manuscript/LlmCache.md` | `source-code/llm-cache` |
+| `manuscript/MoreModelClients.md` | `source-code/multi-client` |
+| `manuscript/OllamaVision.md` | `source-code/ollama-vision` |
+| `manuscript/MicroTransformer.md` | `source-code/micro-transformer` |

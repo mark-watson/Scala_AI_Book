@@ -31,6 +31,15 @@ Each project in the [source-code/](file:///Users/markwatson/GITHUB/Scala_AI_Book
 | [nlp](file:///Users/markwatson/GITHUB/Scala_AI_Book/source-code/nlp) | Natural language processing: tokenizer and POS tagger |
 | [semantic-web](file:///Users/markwatson/GITHUB/Scala_AI_Book/source-code/semantic-web) | Semantic Web / SPARQL with Apache Jena |
 | [kgn](file:///Users/markwatson/GITHUB/Scala_AI_Book/source-code/kgn) | Knowledge Graph Navigator — queries DBPedia via SPARQL |
+| [probability](file:///Users/markwatson/GITHUB/Scala_AI_Book/source-code/probability) | Bayes update, frequentist tests, correlation (from scratch) |
+| [symbolic-math](file:///Users/markwatson/GITHUB/Scala_AI_Book/source-code/symbolic-math) | Polynomial differentiation and integration (from scratch) |
+| [rag-docs](file:///Users/markwatson/GITHUB/Scala_AI_Book/source-code/rag-docs) | Agentic RAG with TF-IDF plus BM25 retrieval and local Ollama answers |
+| [brave-search](file:///Users/markwatson/GITHUB/Scala_AI_Book/source-code/brave-search) | Brave web search client for agents and RAG |
+| [llm-tools](file:///Users/markwatson/GITHUB/Scala_AI_Book/source-code/llm-tools) | Tool registry and CALL/FINAL agent loop for any chat model |
+| [llm-cache](file:///Users/markwatson/GITHUB/Scala_AI_Book/source-code/llm-cache) | SQLite cache for LLM prompts and replies |
+| [multi-client](file:///Users/markwatson/GITHUB/Scala_AI_Book/source-code/multi-client) | Anthropic, Mistral, Groq, Moonshot, Perplexity, Hugging Face clients |
+| [ollama-vision](file:///Users/markwatson/GITHUB/Scala_AI_Book/source-code/ollama-vision) | Ollama vision: text from images |
+| [micro-transformer](file:///Users/markwatson/GITHUB/Scala_AI_Book/source-code/micro-transformer) | Tiny char-level transformer with scalar autograd (from scratch) |
 
 ---
 

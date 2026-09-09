@@ -1,0 +1,16 @@
+hello world
+hello scala
+hello there
+hello again world
+scala runs on the jvm
+the jvm runs scala code
+hello jvm world
+small models learn small texts
+hello small model
+the model reads hello world
+attention links the words
+words link to words
+hello attention model
+the tiny net trains fast
+fast training on small texts
+hello tiny transformer
