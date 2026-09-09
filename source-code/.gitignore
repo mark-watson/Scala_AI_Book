@@ -19,6 +19,10 @@
 # Local jars dropped in for ad hoc runs
 *.jar
 
+# Scala.js link output (see laminar-web-app Makefile)
+main.js
+main.js.map
+
 # Editor and merge backups
 *~
 *.bak

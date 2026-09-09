@@ -40,6 +40,7 @@ Each project in the [source-code/](file:///Users/markwatson/GITHUB/Scala_AI_Book
 | [multi-client](file:///Users/markwatson/GITHUB/Scala_AI_Book/source-code/multi-client) | Anthropic, Mistral, Groq, Moonshot, Perplexity, Hugging Face clients |
 | [ollama-vision](file:///Users/markwatson/GITHUB/Scala_AI_Book/source-code/ollama-vision) | Ollama vision: text from images |
 | [micro-transformer](file:///Users/markwatson/GITHUB/Scala_AI_Book/source-code/micro-transformer) | Tiny char-level transformer with scalar autograd (from scratch) |
+| [laminar-web-app](file:///Users/markwatson/GITHUB/Scala_AI_Book/source-code/laminar-web-app) | Interactive Bayes and doc search widgets with Laminar on Scala.js |
 
 ---
 

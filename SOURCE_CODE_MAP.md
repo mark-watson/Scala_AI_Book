@@ -26,3 +26,4 @@ This table maps each chapter file in `./manuscript` to its source code example d
 | `manuscript/MoreModelClients.md` | `source-code/multi-client` |
 | `manuscript/OllamaVision.md` | `source-code/ollama-vision` |
 | `manuscript/MicroTransformer.md` | `source-code/micro-transformer` |
+| `manuscript/LaminarWebApp.md` | `source-code/laminar-web-app` |
