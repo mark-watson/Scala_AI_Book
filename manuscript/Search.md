@@ -75,8 +75,8 @@ DFS and BFS are the two basic **uninformed** (or "blind") search strategies. Nei
 | --- | --- | --- |
 | Complete on a finite graph | Yes | Yes |
 | Optimal (fewest edges) | No | Yes |
-| Time (tree with branching `b`$, solution depth `d`$) | `O(b^m)`$ | `O(b^d)`$ |
-| Space | `O(b\,m)`$ | `O(b^d)`$ |
+| Time (tree with branching `b`, solution depth `d`) | `O(b^m)` | `O(b^d)` |
+| Space | `O(b, m)` | `O(b^d)` |
 
 Here `m`$ is the maximum depth of the state space, which can be much larger than `d`$. The table shows the core trade-off. BFS keeps a whole layer of the frontier in memory, so its space cost grows exponentially with depth, but it never overlooks a shallow goal. DFS holds only the current path plus its siblings, so its memory cost is linear, but it can plunge down a deep or infinite branch and miss a nearby solution.
 
