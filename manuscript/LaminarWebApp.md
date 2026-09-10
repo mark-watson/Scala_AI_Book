@@ -17,30 +17,96 @@ Two pinned deps carry the stack: Laminar 17.2.1 for widgets plus Airstream, and 
 //> using dep org.scala-js::scalajs-dom::2.8.1
 ```
 
-## Widget One: Bayes Sliders
-
-`BayesCalc` ports the probability chapter math to sliders. Base rate, sensitivity, and false positive rate each get a `Var[Double]` plus a range input locked to it through a `controlled` block. Locking matters: with it the slider is the sole truth for its value, and user drags plus signal writes never fight. The three signals join with `combineWith` into one posterior, which feeds both the readout text and the bar width:
+The entry point mounts both widgets under `#app` on page load. The linked `main.js` auto-runs this `@main`, so `index.html` needs only a div plus a script tag:
 
 ```scala
-controlled(
-  value <-- v.signal.map(_.toString),
-  onInput.mapToValue.map(_.toDoubleOption.getOrElse(0.0)) --> v.writer
-)
+@main def webApp(): Unit =
+  val container = dom.document.querySelector("#app")
+  require(container != null, "Missing <div id=\"app\"> in index.html.")
+  render(
+    container,
+    div(
+      cls := "page",
+      h1("Scala AI Book: interactive widgets"),
+      p("Two small Laminar widgets. Bayes meets the probability chapter, search meets the RAG chapter."),
+      BayesCalc.widget,
+      DocFilter.widget
+    )
+  )
 ```
 
-![Screen shot of web app](laminar_web_app.jpg)
+```html
+<div id="app"></div>
+<script src="main.js"></script>
+```
 
-Set all three sliders to the book values (0.001, 0.99, 0.05) and the page shows 1.94%, the same number the shell test pins.
+## Widget One: Bayes Sliders
+
+`BayesCalc` ports the probability chapter math to sliders. Base rate, sensitivity, and false positive rate each get a `Var[Double]`. The three signals join with `combineWith` into one posterior, which feeds both the readout text and the bar width:
+
+```scala
+private val priorVar = Var(0.001) // P(disease), the base rate
+private val sensVar = Var(0.99)   // P(positive | disease)
+private val fprVar = Var(0.05)    // P(positive | healthy)
+
+private val posterior: Signal[Double] =
+  priorVar.signal.combineWith(sensVar.signal, fprVar.signal).map { case (prev, sens, fpr) =>
+    val pPositive = sens * prev + fpr * (1.0 - prev)
+    if pPositive == 0.0 then 0.0 else sens * prev / pPositive
+  }
+```
+
+Each slider is a range input locked to its var through a `controlled` block. Locking matters: with it the slider is the sole truth for its value, and user drags plus signal writes never fight:
+
+```scala
+input(
+  typ := "range",
+  minAttr := "0",
+  maxAttr := max.toString,
+  stepAttr := step.toString,
+  controlled(
+    value <-- v.signal.map(_.toString),
+    onInput.mapToValue.map(_.toDoubleOption.getOrElse(0.0)) --> v.writer
+  )
+),
+span(cls := "slider-value", child.text <-- v.signal.map(x => f"$x%.4f"))
+```
+
+The bar is one div whose width binds to the same signal, so text and bar can never drift apart:
+
+```scala
+div(cls := "bar-track", div(cls := "bar-fill", width <-- posterior.map(p => s"${p * 100}%")))
+```
 
 ## Widget Two: Doc Search
 
 `DocFilter` holds five doc lines and a query string. Each keystroke maps the query to a match list, and the `split` binder keys rows by text so Laminar keeps, drops, or adds only changed rows:
 
 ```scala
+private val query = Var("")
+
+private val matches: Signal[List[String]] =
+  query.signal.map { q =>
+    val t = q.trim.toLowerCase
+    if t.isEmpty then docs else docs.filter(_.toLowerCase.contains(t))
+  }
+
+input(
+  typ := "text",
+  placeholder := "Type to filter...",
+  controlled(value <-- query.signal, onInput.mapToValue --> query.writer)
+),
+p(child.text <-- matches.map(ms => s"${ms.size} of ${docs.size} docs match.")),
 ul(children <-- matches.split(identity)((_, doc, _) => li(doc)))
 ```
 
-The count line reads the same signal, so it can never drift from the rows.
+The count line reads the same signal as the rows, so it always agrees with what the list shows.
+
+## What the Reader Sees
+
+Open the page and the Bayes card shows the book values: base rate 0.0010, sensitivity 0.9900, false positive rate 0.0500, and a readout of `1.94%` with a short bar. Drag the base rate slider right and the readout plus bar climb at once, no button in between. That 1.94% is the same number the probability chapter test pins, so the widget links straight back to tested math.
+
+In the search card the box starts empty with `5 of 5 docs match.` below it. Typing `solar` narrows the list to two rows (the panel line and the grid battery line) and the count flips to `2 of 5 docs match.` Typing `battery` leaves one row, since only the used pack line holds that exact string. Clearing the box restores all five. Each keystroke re-runs the same `matches` signal, which is why count and rows never disagree.
 
 ## Build and Open
 
@@ -52,4 +118,4 @@ scala-cli --power package . --js -o main.js -f
 python3 -m http.server 8000
 ```
 
-Open http://localhost:8000/index.html. `Main.scala` mounts both widgets under `#app` on page load. Check the wiring with `scala-cli compile . --js`, which needs no browser. When a widget outgrows this shape, move the same sources to an sbt plus Vite setup; the Laminar code stays put.
+Open http://localhost:8000/index.html. Check the wiring with `scala-cli compile . --js`, which needs no browser. When a widget outgrows this shape, move the same sources to an sbt plus Vite setup; the Laminar code stays put.
