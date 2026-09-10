@@ -2,8 +2,12 @@
 
 A char-level transformer with scalar autograd (embed, causal
 attention, RMSNorm, MLP, cross entropy, SGD), after
-`Karpathy_MicroGPT/microgpt.lisp` in the Loving Common Lisp repo.
+`Karpathy_MicroGPT/microgpt.lisp` in the Loving Common Lisp repo,
+which ports Andrej Karpathy's original microGPT Python example.
 Pure Scala, no deps, CPU only.
+
+Credit: the design follows Andrej Karpathy's microGPT, a minimal
+dependency-free GPT in Python.
 
 ## Run
 
