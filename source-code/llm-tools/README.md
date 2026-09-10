@@ -9,6 +9,11 @@ Live loops use local Ollama when it runs.
 
     scala-cli run . --main-class llmtools.toolsDemo
 
+The demo defaults to the `mistral` model. Pass a model you have pulled to
+run the live loop, for example:
+
+    scala-cli run . --main-class llmtools.toolsDemo -- qwen3.5:4b
+
 ## Test (offline, no model needed)
 
     scala-cli run . --main-class llmtools.toolsTest
