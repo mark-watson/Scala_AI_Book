@@ -34,4 +34,4 @@ You can find all of the example programs and manuscript files in the book's GitH
 
 ## Acknowledgments
 
-I would like to thank my wife Carol for editing this book. I would also like to thank the readers who have submitted corrections.
+I would like to thank my wife Carol for editing this book. I would also like to thank the readers who have submitted corrections: none so far.
