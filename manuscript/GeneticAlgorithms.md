@@ -158,7 +158,7 @@ We demonstrate our framework by searching for the maximum of the non-linear func
 f(x) = \sin(x)\,\sin(0.4\,x)\,\sin(3\,x)
 ```
 
-on the interval `[0, 10]`$. This function is a good stress test because it is **multimodal**: multiplying three sines of different frequencies produces many peaks and valleys, so a simple hill climber started from the wrong place would settle on the nearest lesser peak. We represent `x`$ using a 10-gene chromosome, giving us `2^{10} = 1024`$ possible values and a resolution of about `0.01`$ across the interval.
+on the interval `[0, 10]`$. This function is a good stress test because it is **multimodal**: multiplying three sines of different frequencies produces many peaks and valleys, so a simple hill climber started from the wrong place would settle on the nearest lesser peak. We represent `x`$ using a 12-gene chromosome, giving us `2^{12} = 4096`$ possible values and a resolution of about `0.0024`$ across the interval.
 
 The `geneToDouble` method decodes the genotype into the phenotype. It reads the bit string as a standard binary integer, then scales it into the target range:
 
@@ -173,7 +173,7 @@ class SinOptimization(numGenes: Int, popSize: Int)
     for j <- 0 until numGenes do
       if population(index).getBit(j) then x += base
       base *= 2
-    x / 102.4
+    x / ((1 << numGenes) - 1).toDouble * 10.0
 
   private def targetFunction(x: Double): Double =
     math.sin(x) * math.sin(0.4 * x) * math.sin(3.0 * x)
@@ -186,16 +186,16 @@ class SinOptimization(numGenes: Int, popSize: Int)
 
 The decoding uses plain binary, where flipping a high bit can move `x`$ a long way. A common refinement is **Gray code**, an encoding in which consecutive integers differ by exactly one bit, so a single mutation makes a small change in the phenotype and the search moves more smoothly. Plain binary keeps the example simple and still works well here. Notice too the aggressive parameters chosen for this problem: an 85% crossover fraction and a high 30% mutation fraction. The heavy mutation is deliberate, keeping the small population of 20 diverse enough to escape the function's many local peaks.
 
-The driver program runs the optimization for 500 generations:
+The driver program runs the optimization for 20 generations:
 
 ```scala
 @main def geneticAlgorithmDemo(): Unit =
-  val ga = SinOptimization(numGenes = 10, popSize = 20)
-  val numGenerations = 500
+  val ga = SinOptimization(numGenes = 12, popSize = 20)
+  val numGenerations = 20
 
-  for gen <- 0 until numGenerations do
+  for gen <- 1 to numGenerations do
     ga.evolve()
-    if gen % 50 == 0 || gen == numGenerations - 1 then
+    if gen % 5 == 0 then
       print(f"  Generation $gen%4d: ")
       ga.calcFitness()
       ga.sort()
@@ -216,19 +216,19 @@ This prints the best fitness score and its location `x` as the population evolve
 ==================================================
 Genetic Algorithm: Optimizing sin(x)*sin(0.4x)*sin(3x)
 ==================================================
-  Generation    0:   Best fitness: 0.820253 at x=4.199219
-  Generation   50:   Best fitness: 0.903823 at x=5.664062
-  Generation  100:   Best fitness: 0.904803 at x=5.761719
-  ...
-  Generation  450:   Best fitness: 0.904807 at x=5.751953
-  Generation  499:   Best fitness: 0.904807 at x=5.751953
+  Generation    5:   Best fitness: 0.561433 at x=3.792430
+  Generation   10:   Best fitness: 0.561702 at x=3.797314
+  Generation   15:   Best fitness: 0.561790 at x=3.802198
+  Generation   20:   Best fitness: 0.561790 at x=3.802198
 
 Final population (top 5):
-  Chromosome 0: fitness=0.904807  x=5.751953
-  Chromosome 1: fitness=0.904807  x=5.751953
-  Chromosome 2: fitness=0.904807  x=5.751953
-  Chromosome 3: fitness=0.904807  x=5.751953
-  Chromosome 4: fitness=0.904586  x=5.771484
+  Chromosome 0: fitness=0.561790  x=3.802198
+  Chromosome 1: fitness=0.561790  x=3.802198
+  Chromosome 2: fitness=0.561769  x=3.799756
+  Chromosome 3: fitness=0.561767  x=3.804640
+  Chromosome 4: fitness=0.561702  x=3.797314
 ```
 
-The run shows the two phases of a genetic search. In the first 50 generations the best fitness jumps from 0.82 to 0.90 as selection and crossover combine building blocks and climb rapidly toward the global peak. After that, progress slows to a crawl while mutation fine-tunes the last bits of `x`$, and by generation 100 the population has essentially found the answer. Through natural selection and crossover, the population converges on `x \approx 5.75`$, the global maximum of the target function on `[0, 10]`$, without ever computing a derivative or knowing anything about the shape of the function it was optimizing.
+The run shows the genetic search in action. By generation 5 the best fitness is already 0.561433, and it climbs to the global maximum of 0.561790 by generation 15 as selection and crossover combine good building blocks and mutation explores nearby values. After that the search has converged: every later generation reports the same value because the best chromosome has been found and is protected as elite, so mutation and crossover can only match it, not beat it. Through natural selection and crossover, the population converges on `x \approx 3.8022`$, which matches the true global maximum of the target function at `x \approx 3.80215`$ (where `f(x) \approx 0.561790`$) to six decimal places, without ever computing a derivative or knowing anything about the shape of the function it was optimizing.
+
+With 12 bits the interval is divided into 4096 steps about 0.0024 wide, fine enough that the best grid point sits within about `0.0001`$ of the true peak. Coarser encodings (fewer genes) leave the answer less precise, while finer ones enlarge the search space and can make premature convergence more likely, which is the classic exploitation-versus-exploration trade-off discussed earlier.

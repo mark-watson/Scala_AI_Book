@@ -108,14 +108,14 @@ abstract class GeneticAlgorithm(
 class SinOptimization(numGenes: Int, popSize: Int)
     extends GeneticAlgorithm(numGenes, popSize, crossoverFraction = 0.85, mutationFraction = 0.3):
 
-  /** Convert a chromosome's bit pattern to a Double in [0, ~10]. */
+  /** Convert a chromosome's bit pattern to a Double in [0, 10]. */
   def geneToDouble(index: Int): Double =
     var x = 0.0
     var base = 1.0
     for j <- 0 until numGenes do
       if population(index).getBit(j) then x += base
       base *= 2
-    x / 102.4
+    x / ((1 << numGenes) - 1).toDouble * 10.0
 
   private def targetFunction(x: Double): Double =
     math.sin(x) * math.sin(0.4 * x) * math.sin(3.0 * x)
@@ -134,12 +134,12 @@ class SinOptimization(numGenes: Int, popSize: Int)
   println("Genetic Algorithm: Optimizing sin(x)*sin(0.4x)*sin(3x)")
   println("=" * 50)
 
-  val ga = SinOptimization(numGenes = 10, popSize = 20)
-  val numGenerations = 500
+  val ga = SinOptimization(numGenes = 12, popSize = 20)
+  val numGenerations = 20
 
-  for gen <- 0 until numGenerations do
+  for gen <- 1 to numGenerations do
     ga.evolve()
-    if gen % 50 == 0 || gen == numGenerations - 1 then
+    if gen % 5 == 0 then
       print(f"  Generation $gen%4d: ")
       ga.calcFitness()
       ga.sort()

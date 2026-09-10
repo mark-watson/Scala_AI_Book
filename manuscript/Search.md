@@ -13,7 +13,7 @@ All code is in the directory `source-code/search`.
 
 The three examples in this chapter look different on the surface, but they share one structure. We can state any of them with five parts:
 
-- A **state space**: the set of all configurations the world can take. For the city graph a state is a city, for the maze it is a grid cell, and for Tic-Tac-Toe it is a board position.
+- A **state space**: the set of all configurations the world can take. For the city to city route planning graph a state is a graph where the nodes are city names, for the maze it is a grid cell, and for Tic-Tac-Toe it is a board position.
 - An **initial state**: where the search begins.
 - A **successor function**: given a state, it returns the states reachable in one step. In our code this is `neighbors`, `openNeighbors`, or `emptyCells`.
 - A **goal test**: a predicate that tells us when we have finished.
@@ -78,7 +78,7 @@ DFS and BFS are the two basic **uninformed** (or "blind") search strategies. Nei
 | Time (tree with branching `b`, solution depth `d`) | `O(b^m)` | `O(b^d)` |
 | Space | `O(b, m)` | `O(b^d)` |
 
-Here `m`$ is the maximum depth of the state space, which can be much larger than `d`$. The table shows the core trade-off. BFS keeps a whole layer of the frontier in memory, so its space cost grows exponentially with depth, but it never overlooks a shallow goal. DFS holds only the current path plus its siblings, so its memory cost is linear, but it can plunge down a deep or infinite branch and miss a nearby solution.
+Here `m`$ is the maximum depth of the state space, which can be much larger than `d`$ (the depth searched before finding the goal node). The table shows the core trade-off. BFS keeps a whole layer of the frontier in memory, so its space cost grows exponentially with depth, but it never overlooks a shallow goal. DFS holds only the current path plus its siblings, so its memory cost is linear, but it can plunge down a deep or infinite branch and miss a nearby solution.
 
 Both of our implementations track a `visited` set. On a general graph with cycles this set is what keeps the searches **complete**: without it, DFS could loop forever around a cycle. Tracking visited states bounds both searches at `O(V + E)`$ time and `O(V)`$ space, since each node is expanded at most once and each edge examined at most twice. We trade memory for the guarantee that we never revisit a state.
 
@@ -103,7 +103,7 @@ DFS uses recursive backtracking. It explores as deep as possible along each bran
 
 The recursion carries the base case cleanly: if `node` is the goal, we return a one-element path. Otherwise we filter out visited neighbors and search each in turn. The key detail is `.view`. It turns the `flatMap` into a lazy computation, so `headOption` forces only as many recursive searches as it needs to find the first branch that reaches the goal. The moment one branch succeeds, the remaining neighbors are never explored. This is the functional equivalent of an early `return` inside a loop, and it keeps DFS from doing needless work after it finds a path. Each successful frame then prepends its own node with `node :: _`, so the path is rebuilt in the correct start-to-goal order as the recursion unwinds.
 
-BFS explores all neighbors at the current depth before moving deeper. We implement it with a queue of partial paths. Because it always expands the shallowest node first, the first time it reaches the goal it has done so by a path with the fewest possible edges. This is why **BFS is optimal for unweighted graphs**: every path of length `k`$ is fully explored before any path of length `k + 1`$ begins, so no shorter path to the goal can remain undiscovered:
+Breadth First Search (BFS) explores all neighbors at the current depth before moving deeper. We implement it with a queue of partial paths. Because it always expands the shallowest node first, the first time it reaches the goal it has done so by a path with the fewest possible edges. This is why **BFS is optimal for unweighted graphs**: every path of length `k`$ is fully explored before any path of length `k + 1`$ begins, so no shorter path to the goal can remain undiscovered:
 
 ```scala
   /** Breadth-first search using a queue of partial paths.
@@ -129,9 +129,23 @@ BFS explores all neighbors at the current depth before moving deeper. We impleme
 
 Two implementation choices deserve attention. First, the `@annotation.tailrec` annotation asks the compiler to verify that `search` is tail recursive. Because the recursive call is the last action in the function, the compiler rewrites it into a plain loop, so BFS runs in constant stack space no matter how large the graph. Second, we add nodes to the `visited` set the moment we **enqueue** them (`newVisited = visited ++ nextNodes`), not when we later dequeue them. This matters: if two different frontier nodes both border the same unvisited node, marking on enqueue stops that node from entering the queue twice. Without it the queue could hold many copies of the same state, which wastes memory and can break the shortest-path reasoning. We build each partial path by prepending (`n :: path`), which is a constant-time operation on an immutable list, then `reverse` once at the end when we return the finished path.
 
+We run all the search examples with one test program. Here we only show the output for the Depth First Search (DFS) and Breadth First Search (BFS) city route planing example:
+
+```
+ $ scala-cli run .
+Starting compilation server
+==================================================
+Graph Search Demo
+==================================================
+
+Searching from Atlanta to Erie:
+  DFS path: Atlanta → Baltimore → Chicago → Erie
+  BFS path: Atlanta → Chicago → Erie
+```
+
 ## Maze Generation and Solving
 
-Solving mazes is another classic search benchmark. A maze is represented as a 2D grid of booleans where `true` is a wall and `false` is an open passage. We generate a random maze using a DFS-based recursive backtracking algorithm (carving paths through walls) in **search/Maze.scala**:
+Solving mazes is another classic search benchmark. We represent a maze as a 2D grid of booleans where `true` is a wall and `false` is an open passage. We generate a random maze using a DFS-based recursive backtracking algorithm (carving paths through walls) in **search/Maze.scala**:
 
 ```scala
 case class Location(row: Int, col: Int)
@@ -151,7 +165,9 @@ case class Maze(grid: Vector[Vector[Boolean]], rows: Int, cols: Int):
     ).filterNot(isBlocked)
 ```
 
-The generator is worth understanding, because it explains why BFS behaves the way it does on the result. The **recursive backtracker** starts with every cell walled off, then carves a path. It marks the current cell open, shuffles the four directions, and for each direction steps two cells away. If that far cell is still a wall (still unvisited), it knocks out the wall between the two cells and recurses into the far cell:
+The generator is worth understanding, because it explains why BFS behaves the way it does on the result. The **recursive backtracker** starts with every cell walled off, then carves a path. It marks the current cell open, shuffles the four directions, and for each direction steps two cells away. If that far cell is still a wall (still unvisited), it knocks out the wall between the two cells and recurses into the far cell.
+
+Notice in the first block that DFS and BFS return different paths from Atlanta to Erie: DFS follows the first branch it happens to descend (through Denver and Chicago), while BFS finds the shorter two-edge route through Chicago, exactly as the optimality guarantee predicts:
 
 ```scala
 object Maze:
@@ -199,6 +215,51 @@ That property has a direct consequence for solving. On a perfect maze the path b
 ```
 
 The only change from the graph version is that the state is a `Location` (a row and column) instead of an integer index, and the successor function is `openNeighbors` instead of `neighbors`. The maze is a graph whose nodes are open cells and whose edges connect adjacent open cells, so the same algorithm applies without change. This reuse is the payoff of the formal framing at the start of the chapter: once you can express a problem as states, successors, and a goal test, the search code carries over untouched.
+
+We run all the search examples with one test program. Here we only show the output for the maze search example:
+
+```
+$ scala-cli run .
+Starting compilation server
+
+==================================================
+Maze Search Demo
+==================================================
+
+Maze (15×31):
+###############################
+#   #       #           #     #
+### # ##### ######### # # # ###
+# #   # #   #   #   # #   #   #
+# ##### # ### # # # ######### #
+#     #   #   #   # #   #   # #
+# ### # ### ####### # # # # # #
+#   # #     #     #   #   #   #
+### # ####### ### ########### #
+#   # #     # #   #         # #
+# ##### ### # # ### # ####### #
+# #   # # #   #   # # #     # #
+# # # # # ####### # # # ### # #
+#   #           #   #     #   #
+###############################
+
+BFS solution (73 steps):
+###############################
+#...#.......#           #     #
+###.#.#####.######### # # # ###
+# #...# #...#...#...# #   #   #
+# ##### #.###.#.#.#.######### #
+#     #...#...#...#.#...#...# #
+# ### #.###.#######.#.#.#.#.# #
+#   # #.....#     #...#...#...#
+### # ####### ### ###########.#
+#   # #     # #   #         #.#
+# ##### ### # # ### # #######.#
+# #   # # #   #   # # #     #.#
+# # # # # ####### # # # ### #.#
+#   #           #   #     #  .#
+###############################
+```
 
 ## Game Tree Search: Minimax for Tic-Tac-Toe
 
@@ -286,9 +347,69 @@ The maximizing branch raises its local `alpha` (`a`) as it finds stronger moves 
 
 Pruning does not change correctness, only speed, and how much speed depends on **move ordering**. With adversarial (worst-case) ordering, alpha-beta examines the same `O(b^d)`$ nodes as plain minimax and saves nothing. With perfect ordering, where the best move is tried first at every node, it examines only about `O(b^{d/2})`$ nodes. That square-root reduction effectively **doubles the depth** you can search in the same time, which is why strong game engines invest heavily in trying likely-best moves first. We return to exactly this idea, with real move-ordering heuristics, in the chess engine chapter.
 
+We run all the search examples with one test program. Here we only show the output for the maze search example:
+
+```
+$ scala-cli run .
+Starting compilation server
+
+==================================================
+Tic-Tac-Toe: Computer (X) vs Computer (O)
+==================================================
+
+X plays (0, 0):
+X . .
+. . .
+. . .
+
+O plays (1, 1):
+X . .
+. O .
+. . .
+
+X plays (0, 1):
+X X .
+. O .
+. . .
+
+O plays (0, 2):
+X X O
+. O .
+. . .
+
+X plays (2, 0):
+X X O
+. O .
+X . .
+
+O plays (1, 0):
+X X O
+O O .
+X . .
+
+X plays (1, 2):
+X X O
+O O X
+X . .
+
+O plays (2, 1):
+X X O
+O O X
+X O .
+
+X plays (2, 2):
+X X O
+O O X
+X O X
+
+Draw!
+```
+
+The Tic-Tac-Toe result is the practical face of the minimax theorem. Two optimal players of a solved game can never beat each other, so a game between two copies of our engine always ends in a draw. The same search, given a game the opponent misplays, would convert every mistake into a win.
+
 ## Running the Search Demos
 
-The entry point in **search/Main.scala** coordinates all three search demos. First, it searches a small city graph:
+We have already seen example output for the three examples. Now we look at the test harness code. The entry point in **search/Main.scala** coordinates all three search demos. First, it searches a small city graph:
 
 ```scala
   val graph = Graph(
@@ -316,72 +437,7 @@ The entry point in **search/Main.scala** coordinates all three search demos. Fir
   )
 ```
 
-Running the project via `scala-cli run .` produces outputs showing the DFS and BFS paths, the solved maze grid (drawing a path using `.`), and a complete optimal Tic-Tac-Toe game where two computers play each other to a draw. Notice in the first block that DFS and BFS return different paths from Atlanta to Erie: DFS follows the first branch it happens to descend (through Denver and Chicago), while BFS finds the shorter two-edge route through Chicago, exactly as the optimality guarantee predicts:
+Running the project via `scala-cli run .` produces outputs we saw previously showing the DFS and BFS paths, the solved maze grid (drawing a path using `.`), and a complete optimal Tic-Tac-Toe game where two computers play each other to a draw. 
 
-```text
-==================================================
-Graph Search Demo
-==================================================
 
-Searching from Atlanta to Erie:
-  DFS path: Atlanta → Denver → Chicago → Erie
-  BFS path: Atlanta → Chicago → Erie
 
-==================================================
-Maze Search Demo
-==================================================
-
-Maze (15×31):
-###############################
-# #       #   #   #   #   #   #
-# # ### # # # # # # # # # # # #
-#   #   #   #   #   #   #   # #
-### # ####### # # # # # # # # #
-#   # #   #   #   #   #   #   #
-# ### # # # ### ### ### ### # #
-#   #   # # #   #   #   #   # #
-# # ##### # # ### ####### # # #
-# #   #   # #   # #   #   # # #
-# ### # ### ### # # # # ### # #
-#   # #   #   # #   #   #   # #
-# # # ##### # ####### ##### # #
-# # #       #                 #
-###############################
-
-BFS solution (61 steps):
-###############################
-#.#.......#   #   #   #   #   #
-#.#.###.#.# # # # # # # # # # #
-#...#   #...#   #   #   #   # #
-### # #######.# # # # # # # # #
-#   # #   #...#   #   #   #   #
-# ### # # #.### ### ### ### # #
-#   #   # #.#   #   #   #   # #
-# # ##### #.# ### ####### # # #
-# #   #   #.#   # #   #   # # #
-# #   #   #.# ### # # # # ### # #
-#   # #   #.# #   #   #   #   # #
-# # # #####.####### ##### # # #
-# # #.......#.................#
-###############################
-
-==================================================
-Tic-Tac-Toe: Computer (X) vs Computer (O)
-==================================================
-
-X plays (0, 0):
-X . .
-. . .
-. . .
-
-O plays (1, 1):
-X . .
-. O .
-. . .
-
-...
-
-Draw!
-```
-
-The Tic-Tac-Toe result is the practical face of the minimax theorem. Two optimal players of a solved game can never beat each other, so a game between two copies of our engine always ends in a draw. The same search, given a game the opponent misplays, would convert every mistake into a win.
