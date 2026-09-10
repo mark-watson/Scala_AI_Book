@@ -24,7 +24,7 @@ compile:
 test:
 	$(SCALA_CLI) run . $(FLAGS) --main-class nsk.test
 
-run repl:
+repl:
 	$(SCALA_CLI) run . $(FLAGS)
 
 serve:

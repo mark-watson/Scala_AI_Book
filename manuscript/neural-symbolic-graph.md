@@ -21,6 +21,8 @@ data model, `Option` for search that can fail, context parameters for ambient
 configuration, and a string interpolator that stands in for a reader macro. The
 whole core uses the standard library and no outside dependency.
 
+The example code is in the directory **source-code/neural-symbolic-graph**.
+
 ## What we are going to build
 
 By the end of the chapter you will have a program that:
