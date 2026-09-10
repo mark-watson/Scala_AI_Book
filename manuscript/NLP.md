@@ -4,6 +4,8 @@ Natural Language Processing (NLP) enables computers to analyze, understand, and 
 
 All code is in `source-code/nlp`.
 
+Dear reader, the simple approach we use here is sometimes called "a bag of words" and reflects how I did NLP work 20+ years ago. Still, this is a good example that shows simple implementations of techniques that are now made obsolete by LLMs.
+
 ## The Classic NLP Pipeline
 
 Before large language models, NLP systems processed text in a **pipeline**: a chain of stages where each stage adds a layer of annotation the next stage can use. Raw text becomes a list of tokens, tokens get grammatical tags, tagged tokens get grouped into names and phrases, and so on up to full parsing and meaning. We build the first three stages of that pipeline here. Each stage is simple on its own, but together they turn a plain string into structured facts about who and what a sentence mentions.
