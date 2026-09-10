@@ -3,8 +3,11 @@
 check:
 	scala-cli compile .
 
-run:
+run_demo:
 	scala-cli run . --main-class agentscope_gemini.agentScopeDemo
+
+run:
+	scala-cli run . --main-class agentscope_gemini.toolUseDemo
 
 clean:
 	scala-cli clean . 2>/dev/null || true
