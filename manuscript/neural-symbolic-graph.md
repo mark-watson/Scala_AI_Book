@@ -23,6 +23,12 @@ whole core uses the standard library and no outside dependency.
 
 The example code is in the directory **source-code/neural-symbolic-graph**.
 
+When you later run the example, use the `Makefile` target:
+
+```bash
+$ make repl
+```
+
 ## What we are going to build
 
 By the end of the chapter you will have a program that:
