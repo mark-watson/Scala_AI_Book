@@ -31,9 +31,9 @@ Declared via `//> using dep` directives in `GeminiConfig.scala`:
 
 | Artifact | Purpose |
 |---|---|
-| `io.agentscope:agentscope:1.0.12` | AgentScope core (agents, messaging, tools) |
-| `com.google.genai:google-genai:1.59.0` | Google GenAI SDK (Gemini models) |
-| `org.slf4j:slf4j-simple:2.0.18` | SLF4J logging |
+| `io.agentscope:agentscope:2.0.3` | AgentScope core (agents, messaging, tools) |
+| `com.google.genai:google-genai:1.70.0` | Google GenAI SDK (Gemini models) |
+| `org.slf4j:slf4j-simple:2.0.19` | SLF4J logging |
 
 ## Book Cover Material, Copyright, and License
 

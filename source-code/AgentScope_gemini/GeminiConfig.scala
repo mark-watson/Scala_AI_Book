@@ -1,12 +1,12 @@
 // Copyright 2025-2026 Mark Watson. All rights reserved.
 //> using scala 3.8.3
-//> using dep io.agentscope:agentscope:1.0.12
-//> using dep com.google.genai:google-genai:1.59.0
-//> using dep org.slf4j:slf4j-simple:2.0.18
+//> using dep io.agentscope:agentscope:2.0.3
+//> using dep com.google.genai:google-genai:1.70.0
+//> using dep org.slf4j:slf4j-simple:2.0.19
 
 package agentscope_gemini
 
-import io.agentscope.core.model.GeminiChatModel
+import io.agentscope.extensions.model.gemini.GeminiChatModel
 
 object GeminiConfig:
   val MODEL_NAME = "gemini-2.5-flash"

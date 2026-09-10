@@ -4,7 +4,7 @@ check:
 	scala-cli compile .
 
 run:
-	scala-cli run .
+	scala-cli run . --main-class agentscope_gemini.agentScopeDemo
 
 clean:
 	scala-cli clean . 2>/dev/null || true
