@@ -1572,7 +1572,7 @@ scala-cli uses the JDK already on your path rather than downloading one.
 ```bash
 make compile   # type-check every source file
 make test      # run the test suite
-make run       # start the interactive REPL
+make repl       # start the interactive REPL
 make serve     # start the REST server on port 8800
 ```
 
@@ -1581,7 +1581,7 @@ will see. Recall that keyword names are stored upper case, so a fact echoes back
 in upper case, and a query result prints the atom with its colon.
 
 ```
-$ make run
+$ make repl
 NSK: Neural-Symbolic Knowledge Graph Engine
 Type :help for commands, :quit to exit.
 nsk> (:add :mark :wrote :nsk)
