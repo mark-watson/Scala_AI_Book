@@ -19,7 +19,7 @@ final case class ClientConfig(
 )
 ```
 
-Four of the six speak the OpenAI chat shape: model, messages, max tokens. One builder serves them all, so a fix lands once:
+Four of the six speak the OpenAI chat shape: model, messages, max tokens. One builder serves them all, so any future code fix lands in just one place:
 
 ```scala
 def openAiShapePayload(model: String, prompt: String, maxTokens: Int): ujson.Value =

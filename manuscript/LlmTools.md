@@ -1,6 +1,6 @@
 # LLM Tool Use Without a Framework
 
-The AgentScope chapter drives tools through a full agent SDK. That SDK supplies a ReAct loop, a JSON schema for every tool, and the message plumbing between them. At times that is more than you need. This chapter builds the same capability in pure Scala 3: a registry of named tools, three safe builtins, and a loop that lets any chat model call them through plain text. No SDK and no JSON schema dance. The model writes `CALL:` lines, the code runs them, and the results flow back in.
+The AgentScope chapter drives tools through a full agent SDK. That SDK supplies a ReAct loop, a JSON schema for every tool, and the message plumbing between them. At times that is more than you need. This chapter builds the same capability in pure Scala 3: a registry of named tools, three safe builtins, and a loop that lets any chat model call them through plain text. No SDK and no JSON schema dance. The model writes `CALL:` lines, the code runs them, and the results flow back into the current message buffer..
 
 All code is in `source-code/llm-tools`.
 
@@ -59,7 +59,7 @@ object ToolRegistry:
 
 ## Three Safe Builtins
 
-**BuiltinTools.scala** ports the Lisp originals from the `llm-tools` and `cl-llm-agent` projects:
+**BuiltinTools.scala** ports the Lisp originals from the `llm-tools` and `cl-llm-agent` projects in my Common Lisp book:
 
 ```scala
 object BuiltinTools:

@@ -11,7 +11,7 @@ All code is in `source-code/llm-cache`. The example needs one dependency, declar
 
 ## Why Cache Model Calls
 
-Three costs fall when a repeated call becomes a cache hit:
+Three types of costs can drastically decrease when a repeated call becomes a cache hit:
 
 - **Money.** Providers charge per input and output token. A hit spends zero tokens.
 - **Latency.** A local disk read takes a few milliseconds at most. A hosted call takes hundreds of milliseconds to many seconds.
@@ -135,7 +135,7 @@ Three details of `LIKE` are worth knowing:
 
 The method has no `ORDER BY`, so row order is not defined by the SQL standard. SQLite returns a table scan in rowid order today, which is insertion order. If you want newest first, add `ORDER BY id DESC` before the limit.
 
-## Tending the Store
+## Managing the Data Store
 
 Four small methods manage the store:
 
@@ -192,7 +192,7 @@ The demo uses `Files.createTempFile`, so the database disappears with the OS tem
 
 ## Cache First, Model Second
 
-Wire the store in front of any model call. Take a few rare words from the prompt, look them up, and call the model only on a miss:
+In production pipelines we wire the data store cache in front of any model call. Take a few rare words from the prompt, look them up, and call the model only on a miss:
 
 ```scala
 def cachedAnswer(cache: CacheEngine, prompt: String, terms: Seq[String])(
