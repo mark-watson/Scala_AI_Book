@@ -16,7 +16,7 @@ I have used Scala since its early days and have always appreciated its powerful 
 
 This book is a practical guide to building AI applications with Scala. We use Scala 3, the modern standard for Scala development, and `scala-cli` for running lightweight script-like projects and applications. My goal is to show you how classic AI search, neural networks, genetic algorithms, and natural language processing can be implemented cleanly in Scala. Furthermore, we explore how to integrate modern AI tools like large language models, semantic web technologies, and autonomous multi-agent frameworks into Scala applications.
 
-**Note: Dear reader, although I have been writing Scala code for many years, I relied on modern AI coding assistants (including DeepSeek, Gemini, and Claude models) to help develop, debug, and refine the example programs and edit the text for this book.**
+*Note: Dear reader, although I have been writing Scala code for many years, I partially relied on modern AI coding assistants (including DeepSeek, Gemini, and Claude models) to help develop, debug, and refine the example programs and for final edits on the manuscript for this book.*
 
 ## Who This Book Is For
 
