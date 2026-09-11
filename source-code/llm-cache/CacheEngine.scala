@@ -29,9 +29,10 @@ class CacheEngine(dbPath: String) extends AutoCloseable:
     else
       val joiner = if matchAny then " OR " else " AND "
       "SELECT content FROM cache WHERE " + terms.map(_ => "content LIKE ?").mkString(joiner)
-    val ps = conn.prepareStatement(base + s" LIMIT $limit")
+    val ps = conn.prepareStatement(base + " LIMIT ?")
     try
       terms.zipWithIndex.foreach { case (t, i) => ps.setString(i + 1, s"%$t%") }
+      ps.setInt(terms.size + 1, limit)
       val rs = ps.executeQuery()
       try Iterator.continually(rs).takeWhile(_.next()).map(_.getString(1)).toList
       finally rs.close()
@@ -43,8 +44,10 @@ class CacheEngine(dbPath: String) extends AutoCloseable:
 
   def clear(): Unit = exec("DELETE FROM cache")
 
+  // Keep rows newer than `days` days. A negative value moves the cutoff
+  // into the future, so clearOlderThan(-1) clears the whole table.
   def clearOlderThan(days: Int): Unit =
-    exec(s"DELETE FROM cache WHERE created_at <= datetime('now', '-$days days')")
+    exec(s"DELETE FROM cache WHERE created_at <= datetime('now', '${-days} days')")
 
   def clearOlderThanOneWeek(): Unit = clearOlderThan(7)
 
