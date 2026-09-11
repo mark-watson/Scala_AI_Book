@@ -1,6 +1,8 @@
 # Symbolic Math: Differentiate and Integrate
 
-Neural networks learn numbers through gradient steps, yet the gradient idea starts with pen and paper calculus. This chapter builds a small symbolic math core in Scala 3: terms, polynomials, exact differentiation, and exact integration. No numeric fits, no step size to tune, no truncation error. The rules of calculus are written as code, and every result is an exact expression you can read.
+Neural networks work with numbers modified with training data via gradient descent machine learning techniques. By contrast symbolic math works via manipulation of symbols.
+
+This chapter builds a small symbolic math core in Scala 3: terms, polynomials, exact differentiation, and exact integration. No numeric fits, no step size to tune, no truncation error. The rules of calculus are written as code, and every result is an exact expression you can read.
 
 All code is in `source-code/symbolic-math`.
 
