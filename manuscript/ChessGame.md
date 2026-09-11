@@ -1,6 +1,8 @@
 # A Chess Engine and AI Bot
 
-Building a high-performance chess engine is a classic milestone in AI development. It tests both the execution speed of the programming language and the elegance of its design. In this chapter, we explore a chess engine and AI bot written in modern, idiomatic Scala 3.
+Building a high-performance chess engine was a classic milestone in AI development. My lifelong interest in AI started when I played a Chess program on a PDP-8 and that motivated me to read Bertram Raphael's book "The Thinking Computer: Mind Inside Matter" in 1977. I was hooked! Except for building a few very large scale distributed systems, most of my career has been AI-adjacent. I wrote the free Chess Chess program that Apple distributed with early Apple II computers.
+
+In this chapter, we explore a Chess engine written in modern, idiomatic Scala 3.
 
 The project compiles to efficient JVM bytecode, achieving searches of over **550,000+ NPS** (Nodes Per Second) on standard developer laptops without any native dependencies.
 
