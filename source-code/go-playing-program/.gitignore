@@ -1,0 +1,20 @@
+# Scala CLI build output
+.scala-build/
+.bsp/
+project/target/
+target/
+
+# Generated games and training data
+demo-game.sgf
+demo-selfplay/
+selfplay-*/
+runs/
+
+# Editor and OS noise
+.metals/
+.bloop/
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
