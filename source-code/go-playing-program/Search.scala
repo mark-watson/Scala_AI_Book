@@ -89,6 +89,14 @@ final case class SearchConfig(
     dirichletWeight: Double = 0.0,
     /** Batch size for network evaluation; > 1 helps the ONNX/CoreML path. */
     maxBatchSize: Int = 1,
+    /**
+     * Boost a tactically proven capture's prior before searching (see
+     * Tactics.findForcedCapture).  Off by default: the proof costs a small
+     * local search per move, which pays off only when captures decide games.
+     */
+    tactics: Boolean = false,
+    /** Search depth, in plies, for the tactical proof. */
+    tacticsDepth: Int = 8,
     seed: Long = 0x5eedL
 ):
   require(playouts > 0, "playouts must be positive")
@@ -219,6 +227,22 @@ final class MCTSNode(
         priorRef.set(orderedPriors)
         true
       else false
+
+  /**
+   * Adopts another node's evaluated state: its ordered candidates and priors
+   * plus its whole subtree.  Used by [[SearchSession.advanceTo]] to re-root
+   * the tree on the move actually played without losing what the search
+   * learned below it.  The adopted children's `parent` links still point at
+   * the old node, which is harmless: nothing walks parent links (selection
+   * descends from the root, backpropagation uses the per-iteration path).
+   */
+  private[go] def adoptFrom(other: MCTSNode): Unit =
+    if other.isEvaluated then
+      candidateRef.set(other.candidates)
+      priorRef.set(other.candidatePriors)
+    for child <- other.children do
+      val key = if child.move.isPass then state.area else child.move.index
+      childMap.put(key, child)
 
   override def toString: String =
     f"${move.label(state.size)} n=$n q=$q%.3f prior=$prior%.3f"
@@ -357,14 +381,21 @@ final case class SearchResult(
  *
  * Keeping the tree alive is what makes pondering possible: the engine can keep
  * searching while the opponent thinks, then reuse the part of the tree that is
- * still relevant.
+ * still relevant.  [[advanceTo]] re-roots the tree on the move actually
+ * played; callers in CLI.scala, GTP.scala and SelfPlay.scala use it after
+ * every move so each search starts where the last one left off.
  */
 final class SearchSession(
     val network: PolicyValueNetwork,
     val config: SearchConfig,
-    val root: MCTSNode
+    initialRoot: MCTSNode
 ):
   import Search.*
+
+  /** The current root; [[advanceTo]] moves it down after each played move. */
+  def root: MCTSNode = currentRoot
+
+  private var currentRoot: MCTSNode = initialRoot
 
   private val batcher: BatchingEvaluator | Null =
     if config.maxBatchSize > 1 then new BatchingEvaluator(network, config.maxBatchSize) else null
@@ -407,11 +438,37 @@ final class SearchSession(
       root.install(policy)
 
   /**
+   * Re-roots the tree on the move just played, keeping the subtree below it.
+   *
+   * Returns false when the move was never explored, in which case the tree is
+   * left alone and the caller should start a fresh session.  Call only when
+   * no search is running: every `runPlayouts` joins its threads before
+   * returning, so calling this between searches is safe.  Superko history,
+   * visit counts, value totals and RAVE statistics all travel with the
+   * adopted child; virtual loss always cancels exactly per iteration, so none
+   * is ever in flight here.
+   */
+  def advanceTo(move: Point): Boolean =
+    val index = if move.isPass then currentRoot.state.area else move.index
+    val child = currentRoot.childFor(index)
+    if child == null then false
+    else
+      val fresh = new MCTSNode(child.move, child.prior, null, child.state)
+      fresh.adoptFrom(child)
+      currentRoot = fresh
+      true
+
+  /** Releases the batching thread, if any.  One-shot searches close it. */
+  def close(): Unit =
+    if batcher != null then batcher.close()
+
+  /**
    * Runs `playouts` more iterations, in parallel.  Returns the number actually
    * completed, which is lower if a time limit stopped the search.
    */
   def runPlayouts(playouts: Int, deadlineNanos: Option[Long] = None): Int =
     ensureRootEvaluated(new java.util.Random(config.seed))
+    if config.tactics then boostTacticalCapture()
     val threadCount = math.max(1, config.threads)
     val budget = new AtomicInteger(playouts)
     val latch = new CountDownLatch(threadCount)
@@ -434,10 +491,34 @@ final class SearchSession(
       t += 1
 
     latch.await()
-    if batcher != null then batcher.close()
     val done = completed.get()
     completedPlayouts.addAndGet(done)
     done
+
+  /**
+   * Gives a tactically proven capture a louder voice in PUCT: its prior is
+   * raised and the distribution renormalised.  The search still decides --
+   * this only spends the first visits where the proof points, which is what
+   * finds a three-liberty capture in dozens rather than thousands of playouts.
+   */
+  private def boostTacticalCapture(): Unit =
+    val priors = currentRoot.candidatePriors
+    val candidates = currentRoot.candidates
+    if priors != null && candidates != null then
+      Tactics.findForcedCapture(currentRoot.state, currentRoot.state.toMove, config.tacticsDepth) match
+        case Some(line) =>
+          val target =
+            if line.firstMove.isPass then currentRoot.state.area else line.firstMove.index
+          val at = candidates.indexOf(target)
+          if at >= 0 then
+            priors(at) = math.min(0.9f, priors(at) * 8.0f + 0.1f)
+            val total = priors.sum
+            if total > 0f then
+              var i = 0
+              while i < priors.length do
+                priors(i) = (priors(i) / total).toFloat
+                i += 1
+        case None => ()
 
   /**
    * One MCTS iteration: select a path, expand the leaf, evaluate it, and back
@@ -723,8 +804,10 @@ object Search:
   ): SearchResult =
     val session = newSession(state, network, config)
     val started = System.nanoTime()
-    session.runPlayouts(config.playouts, config.timeLimit.map(t => started + t.toNanos))
-    session.result(FiniteDuration(System.nanoTime() - started, TimeUnit.NANOSECONDS))
+    try
+      session.runPlayouts(config.playouts, config.timeLimit.map(t => started + t.toNanos))
+      session.result(FiniteDuration(System.nanoTime() - started, TimeUnit.NANOSECONDS))
+    finally session.close()
 
   /** Creates a search tree without running any playouts, for pondering. */
   def newSession(
@@ -808,12 +891,12 @@ object Search:
 // ----------------------------------------------------------------------------
 // Design doc section 2.6 -- alpha-beta tactical supplement.
 //
-// Deliberately not implemented.  A trustworthy Go alpha-beta search needs its
-// own move generation for capturing races, threat extensions and a static
-// exchange evaluator; a half-hearted version would be worse than none, and
-// nothing else in the engine depends on it.  The natural home for it is a new
-// `Tactics.scala` that `SearchConfig` can opt into for semeai/tsumego
-// subproblems.  This comment is the marker for that work.
+// Implemented in Tactics.scala: a depth-bounded alpha-beta over the local
+// region around one victim group, proving forced captures that MCTS would
+// need thousands of playouts to find.  It is deliberately narrow -- local
+// reading only, open fights and active ko declined -- and `SearchConfig`
+// opts into it with `tactics = true`, which boosts a proven capture's prior
+// before the search runs.  The search still decides; tactics only points.
 // ----------------------------------------------------------------------------
 
 /**

@@ -156,6 +156,42 @@ import scala.collection.mutable
   )
 
   // --------------------------------------------------------------------------
+  // Life and death: final_status_list answers every status (2.1)
+  // --------------------------------------------------------------------------
+  // Two white stones walled into a black ring: dead, and the score says so.
+  eq("clear the board", ok("clear", engine.handle("clear_board")), "")
+  eq("komi zero for exact counting", ok("komi", engine.handle("komi 0")), "")
+  for vertex <- Vector(
+    "A9", "B9", "C9", "D9", "E9",
+    "A5", "B5", "C5", "D5", "E5",
+    "A8", "A7", "A6", "E8", "E7", "E6"
+  ) do
+    ok(s"wall $vertex", engine.handle(s"play black $vertex"))
+  ok("trap one", engine.handle("play white C7"))
+  ok("trap two", engine.handle("play white C6"))
+  eq("dead lists the trapped stones")(ok("dead", engine.handle("final_status_list dead")), "C6 C7")
+  eq("alive does not list the trapped stones")(ok("alive", engine.handle("final_status_list alive")), "")
+  eq("nothing is seki here")(ok("seki", engine.handle("final_status_list seki")), "")
+  check("black lists the wall") { ok("black", engine.handle("final_status_list black")).contains("A9") }
+  eq("white lists the trapped group")(ok("white", engine.handle("final_status_list white")), "C6 C7")
+  refuses("an unknown status is refused", engine.handle("final_status_list bogus"))
+  eq("final_score counts the trapped stones as dead")(ok("score", engine.handle("final_score")), "B+79")
+
+  // Corner seki: neither side can force a capture, so both groups are seki
+  // and neither is dead.
+  eq("clear the board", ok("clear", engine.handle("clear_board")), "")
+  ok("seki B1", engine.handle("play black A9"))
+  ok("seki B2", engine.handle("play black A8"))
+  ok("seki W1", engine.handle("play white B8"))
+  ok("seki W2", engine.handle("play white B7"))
+  val sekiBody = ok("seki", engine.handle("final_status_list seki"))
+  check("seki lists the shared-life groups") {
+    Vector("A9", "A8", "B8", "B7").forall(sekiBody.contains)
+  }
+  eq("neither seki group is dead")(ok("dead", engine.handle("final_status_list dead")), "")
+  eq("neither seki group is alive")(ok("alive", engine.handle("final_status_list alive")), "")
+
+  // --------------------------------------------------------------------------
   // Time control
   // --------------------------------------------------------------------------
   eq("time_settings is accepted")(ok("time_settings", engine.handle("time_settings 60 10 5")), "")

@@ -129,14 +129,19 @@ def read_header(path: str) -> Header:
 def read_floats(path: str) -> tuple[Header, array.array]:
     """Reads the header and the flat float32 body, using only the stdlib."""
     header = read_header(path)
+    expected = header.example_count * header.floats_per_example
     body = array.array("f")
     with open(path, "rb") as handle:
         handle.seek(HEADER_SIZE)
-        body.fromfile(handle, header.example_count * header.floats_per_example)
+        try:
+            body.fromfile(handle, expected)
+        except EOFError:
+            raise SelfPlayFormatError(
+                f"{path}: truncated body, expected {expected} floats"
+            ) from None
     # The file is little-endian; array('f') is native, so swap on big-endian.
     if sys.byteorder == "big":
         body.byteswap()
-    expected = header.example_count * header.floats_per_example
     if len(body) != expected:
         raise SelfPlayFormatError(f"{path}: expected {expected} floats, found {len(body)}")
     return header, body

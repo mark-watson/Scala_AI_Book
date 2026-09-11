@@ -282,6 +282,55 @@ import scala.concurrent.duration.FiniteDuration
   }
 
   // --------------------------------------------------------------------------
+  // Tree reuse: advanceTo re-roots on the move played (3.1)
+  // --------------------------------------------------------------------------
+  // Single-threaded with a fixed seed, so the tree shape is reproducible.
+  val reuseSession = Search.newSession(
+    atari,
+    heuristic,
+    SearchConfig(playouts = 300, threads = 1, seed = 11L)
+  )
+  reuseSession.runPlayouts(300)
+  val childVisits = reuseSession.visitCounts.getOrElse(captureMove, 0)
+  check("the capture was explored before re-rooting") { childVisits > 0 }
+  eq("advancing to the played move succeeds")(reuseSession.advanceTo(captureMove), true)
+  eq("the new root is the position after the capture")(
+    reuseSession.root.state.samePosition(atari.playOrThrow(captureMove)),
+    true
+  )
+  eq("the new root keeps the child's visit count")(reuseSession.root.n, childVisits)
+  check("superko history travels with the new root") {
+    reuseSession.root.state.positionHistory.contains(atari.zobristHash)
+  }
+  reuseSession.runPlayouts(100)
+  eq("each continued iteration visits the new root")(reuseSession.root.n, childVisits + 100)
+  check("the continued search returns a legal move") {
+    val continued = reuseSession.bestMove
+    continued.isPass ||
+    reuseSession.root.state.isLegal(continued, reuseSession.root.state.toMove)
+  }
+  check("the continued visit distribution still sums to 1") {
+    math.abs(reuseSession.visitDistribution.values.sum - 1.0) < 1e-3
+  }
+
+  // An occupied point can never be a child, so advancing to one must fail
+  // and leave the tree exactly where it was.
+  val stuckSession = Search.newSession(
+    atari,
+    heuristic,
+    SearchConfig(playouts = 300, threads = 1, seed = 11L)
+  )
+  stuckSession.runPlayouts(300)
+  eq("advancing to an unexplored move fails")(
+    stuckSession.advanceTo(Point.at(4, 4, 9)),
+    false
+  )
+  eq("a failed advance keeps the old root")(
+    stuckSession.root.state.samePosition(atari),
+    true
+  )
+
+  // --------------------------------------------------------------------------
   // Time control and clocks
   // --------------------------------------------------------------------------
   val sudden = Clock(TimeControl.suddenDeath(FiniteDuration(60, "s")))

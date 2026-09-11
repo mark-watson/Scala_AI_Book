@@ -71,14 +71,15 @@ ONNX_RUN := $(SCALA_CLI) run . $(SERVER_FLAG) --dep $(ONNX_DEP)
 
 # The test entry points, in package go.  These names are the @main method
 # names, so they must match exactly: `make selfPlayTest` runs go.selfPlayTest.
-SUITES := boardTest searchTest sgfTest selfPlayTest gtpTest cliTest
+SUITES := boardTest evalTest searchTest tacticsTest sgfTest selfPlayTest gtpTest cliTest
 
 DEMOS := board eval sgf search gtp selfplay
 DEMO_TARGETS := $(addprefix demo-,$(DEMOS))
 
 .PHONY: all check test run clean fmt fmt-check watch help \
         $(DEMO_TARGETS) demo-all \
-        test-all test-board test-search test-sgf test-selfplay test-gtp test-cli \
+        test-all test-board test-eval test-search test-tactics test-sgf test-selfplay test-gtp test-cli \
+        test-python \
         gtp selfplay onnx-check onnx-run onnx-gtp onnx-selfplay \
         version clean-cache
 
@@ -123,11 +124,17 @@ $(SUITES):
 
 # Friendly per-subsystem aliases.
 test-board: boardTest
+test-eval: evalTest
 test-search: searchTest
+test-tactics: tacticsTest
 test-sgf: sgfTest
 test-selfplay: selfPlayTest
 test-gtp: gtpTest
 test-cli: cliTest
+
+# The training-data reader test.  Stdlib only, so it runs without NumPy.
+test-python:
+	cd python && python3 -m unittest
 
 .PHONY: $(SUITES)
 
@@ -244,11 +251,14 @@ help:
 	@echo ""
 	@echo "One subsystem at a time:"
 	@echo "  make test-board       board rules, captures, ko, scoring   (Board.scala)"
+	@echo "  make test-eval        feature planes, heuristic policy    (Evaluate.scala)"
 	@echo "  make test-search      Monte Carlo tree search            (Search.scala)"
+	@echo "  make test-tactics     forced-capture reading             (Tactics.scala)"
 	@echo "  make test-sgf         SGF reading and writing             (SGF.scala)"
 	@echo "  make test-selfplay    reinforcement-learning data    (SelfPlay.scala)"
 	@echo "  make test-gtp         Go Text Protocol                   (GTP.scala)"
 	@echo "  make test-cli         board layout and alignment          (CLI.scala)"
+	@echo "  make test-python      training-data reader           (python/)"
 	@echo ""
 	@echo "  make demo-board       rules, shown move by move"
 	@echo "  make demo-search      MCTS visits, timing, principal variation"

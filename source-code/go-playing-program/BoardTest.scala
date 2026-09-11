@@ -260,6 +260,72 @@ import scala.collection.mutable
   eq("a resignation is reported clearly")(resign.resultString, "B+Resign")
 
   // --------------------------------------------------------------------------
+  // Life and death: dead stones do not own points
+  // --------------------------------------------------------------------------
+  // A solid 5x5 block with two separate one-point eyes is unconditionally
+  // alive: nothing the opponent does can touch it.
+  val twoEyed = BoardState
+    .empty(9, komi = 0.0)
+    .setupStones(
+      (for
+        x <- 2 to 6
+        y <- 2 to 6
+        if (x, y) != (3, 3) && (x, y) != (5, 5)
+      yield Point.at(x, y, 9) -> Color.Black).toVector
+    )
+  check("the two-eyed block is alive") {
+    LifeDeath.aliveGroups(twoEyed).exists(_.stones.contains(Point.at(2, 2, 9)))
+  }
+  eq("nothing is dead around two eyes")(twoEyed.deadStones, Set.empty[Point])
+  check("removing nothing returns the same position") { twoEyed.removeDeadStones eq twoEyed }
+
+  // Two white stones walled into a 5x5 black ring: five liberties, no way
+  // out, no room for two eyes.  They are dead, and the score must say so.
+  val ringPoints = (0 until 5)
+    .flatMap(i => Seq(Point.at(i, 0, 9), Point.at(i, 4, 9), Point.at(0, i, 9), Point.at(4, i, 9)))
+    .toSet
+  val whiteA = Point.at(2, 2, 9)
+  val whiteB = Point.at(2, 3, 9)
+  val trapped = BoardState
+    .empty(9, komi = 0.0)
+    .setupStones((ringPoints.map(_ -> Color.Black) + (whiteA -> Color.White) + (whiteB -> Color.White)).toVector)
+  eq("the trapped stones share five liberties")(
+    trapped.groupAt(whiteA).map(_.liberties.size),
+    Some(5)
+  )
+  eq("both trapped stones are dead")(
+    trapped.deadStones,
+    Set(whiteA, whiteB)
+  )
+  check("none of the wall is dead") {
+    trapped.deadStones.forall(p => trapped.stoneAt(p) == Color.White)
+  }
+  val cleared = trapped.removeDeadStones
+  eq("removal empties the trapped points")(cleared.stoneAt(whiteA), Color.Empty)
+  eq("removal empties the second trapped point")(cleared.stoneAt(whiteB), Color.Empty)
+  eq("removed stones count as prisoners")(cleared.captures, (2, 0))
+  // Fill the five liberties by hand: Black captures, and the count after a
+  // real capture is what the life-and-death score must equal.
+  val filled = trapped
+    .groupAt(whiteA)
+    .get
+    .liberties
+    .toVector
+    .foldLeft(trapped)((s, p) => s.place(p, Color.Black).fold(_ => s, identity))
+  eq("filling every liberty captures the group")(filled.captures, (2, 0))
+  eq("the score counts the trapped stones as captured")(trapped.score, filled.score)
+  eq("removal scores the same as capturing")(cleared.score, filled.score)
+  // Concrete counts: 16 wall stones plus 63 points of owned emptiness under
+  // area rules; under territory rules the 63 points plus 2 prisoners.
+  // (Filling the liberties by hand instead would fill 5 points of Black's own
+  // territory, so territory scoring rightly differs there: dame is not free.)
+  eq("area counts the wall and the whole corner")(trapped.score, Score(79.0, 0.0))
+  eq("territory counts the corner plus 2 prisoners")(
+    trapped.copyWithRules(RuleSet.Territory).score,
+    Score(65.0, 0.0)
+  )
+
+  // --------------------------------------------------------------------------
   // Rendering
   // --------------------------------------------------------------------------
   val rendered = koShape.toAscii()

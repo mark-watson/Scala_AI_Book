@@ -10,14 +10,13 @@ scaffold.  This file is the working list: it says *where* each piece goes and
 
 | | |
 |---|---|
-| Suites | `make check` — 307 checks across 6 suites, all passing |
+| Suites | `make check` — 465 checks across 8 suites, plus `make test-python` (13 tests) |
 | Entry points | `make run`, `make gtp`, `make selfplay`, `make demo-all` |
-| Verified here | board rules, MCTS, SGF, self-play, GTP, CLI layout |
-| **Not verified here** | the ONNX path — this environment cannot resolve the jar (see item 1) |
+| Verified here | board rules, MCTS, SGF, self-play, GTP, CLI layout, eval planes, tactics, life-and-death, tree reuse, python reader |
+| **Not verified here** | the ONNX path and a full `make check` run — this environment cannot execute `scala-cli` (see item 1.1) |
 
-Sizes, so you can gauge the work: `Board.scala` 862 lines, `Search.scala` 904,
-`Evaluate.scala` 731, `GTP.scala` 502, `CLI.scala` 471, `SelfPlay.scala` 456,
-`Demo.scala` 444, `SGF.scala` 364, plus `Args.scala` and six test suites.
+New files since the scaffold: `Tactics.scala`, `LifeDeath.scala`,
+`EvaluateTest.scala`, `TacticsTest.scala`, `python/test_load_selfplay.py`.
 
 ---
 
@@ -28,10 +27,15 @@ most valuable task in this file.
 
 - [ ] **1.1 Verify the ONNX path on a machine that can fetch the dependency.**
   The bridge is written, compiles, and is defensive, but it has never executed a
-  real model: the development sandbox has a read-only Coursier cache, so
-  `com.microsoft.onnxruntime:onnxruntime` cannot be resolved.
+  real model.  Attempted 2026-09-11 on an M2 Mac: `scala-cli` itself cannot
+  start inside the sandbox (its launcher dies on a signal call the sandbox
+  forbids, and escalation is unavailable in this session), so even the
+  dependency fetch could not be attempted here — this needs a normal terminal.
   *Where:* `Evaluate.scala` (`OnnxBridge`, `OnnxNetwork`), `make onnx-check`.
   *Workaround for a restricted cache:* `COURSIER_CACHE=/tmp/coursier make onnx-check`.
+  *Try, in order:* `make onnx-check` (no model: reports jar presence);
+  `COURSIER_CACHE=/tmp/coursier make onnx-check` if the cache is read-only;
+  then with a real export for 9x9 and 19x19.
   *Done when:* `make onnx-check MODEL=...` prints a policy that sums to 1.0 and a
   value in [-1, 1] for a real export, on both a 9x9 and a 19x19 model, and
   `make onnx-gtp` plays a legal game.
@@ -39,17 +43,15 @@ most valuable task in this file.
   `valueOutput=1`), input name (`input`), and whether CoreML registration
   succeeds on Apple Silicon.
 
-- [ ] **1.2 A test suite for `Evaluate.scala`.**  It is the largest untested file.
-  `FeaturePlanes.encode` is exactly the kind of code that fails silently — an
-  off-by-one in a plane or a wrong "was Black" plane poisons every training
-  example and every search.  A wrong encoding cannot be seen by reading output.
-  *Where:* new `EvaluateTest.scala` + `make test-eval`; add to `SUITES` in the
-  `Makefile`.
-  *Done when:* plane count/shape, plane 0 is the side-to-move stones, the
-  history planes, the `toMove` perspective of the value, komi handling, and
-  `toNchw`'s flat layout are all asserted; `HeuristicNetwork`'s policy sums to
-  1.0 and moves a forced capture; `HeuristicEval.influenceAt` is non-zero
-  adjacent to a stone and zero far away.
+- [x] **1.2 A test suite for `Evaluate.scala`.**  Done 2026-09-11:
+  `EvaluateTest.scala` (67 checks) + `make test-eval`, in `SUITES`.
+  Asserts plane count/shape, plane 0 as side-to-move stones, history slots
+  (including passes), `toMove` value symmetry, komi-aware value
+  (`HeuristicEval.influenceValue` now subtracts komi — behaviour change, was
+  komi-blind), `toNchw` layout, policy sums + forced-capture top move, and
+  `influenceAt` near/far/off-board.  Not yet executed here (`scala-cli`
+  cannot run in this sandbox); needs one `make check` on an unrestricted
+  machine.
 
 - [ ] **1.3 A test for `Args.scala`.**  It is shared by all three entry points and
   has fiddly parsing (`--name value`, `--name=value`, `-name value`, bare
@@ -58,12 +60,13 @@ most valuable task in this file.
   *Done when:* every form parses, `ms` is not misread as seconds, and an
   unknown flag is reported rather than ignored.
 
-- [ ] **1.4 A test for the training-data reader.**  `python/load_selfplay.py`
-  currently has no automated check, so a format change could break the training
-  path without anything noticing.
-  *Where:* `python/` — a small `unittest`, runnable with `python3 -m unittest`.
-  *Done when:* a generated file round-trips (header, example count, policy sums),
-  and a deliberately truncated file fails loudly instead of silently.
+- [x] **1.4 A test for the training-data reader.**  Done 2026-09-11:
+  `python/test_load_selfplay.py` (13 tests, `make test-python`), executed
+  here: 12 pass, 1 skipped (NumPy absent).  Round-trips header/count/policy
+  sums/outcomes/rendering; truncated header/body, wrong magic, wrong policy
+  size, and missing file all fail loudly.  The test caught one real wart:
+  a truncated body raised bare `EOFError` from `array.fromfile`; the reader
+  now wraps it in `SelfPlayFormatError`.
 
 - [ ] **1.5 Continuous integration.**  Nothing runs the suites on a push, and the
   zero-dependency design means it is a one-line job: install `scala-cli`, run
@@ -73,22 +76,22 @@ most valuable task in this file.
 
 ## 2. Rules and protocol completeness
 
-- [ ] **2.1 `final_status_list` only answers `alive`.**  Every other status —
-  `dead`, `seki`, `black`, `white` — returns an empty response, which is a wrong
-  answer rather than a missing one.
-  *Where:* `GTP.scala`, `finalStatusList`/`aliveGroups`.
-  *Done when:* `dead` lists captured-or-doomed groups and `seki` lists
-  double-live groups; `GTPTest.scala` covers each status.
-  *Note:* this is the same life-and-death problem as 2.2 — solve it once.
+- [x] **2.1 `final_status_list` answers every status.**  Done 2026-09-11:
+  `alive`/`dead`/`seki` via `LifeDeath`, `black`/`white` list their stones,
+  unknown statuses are refused (were silently empty).  `GTPTest.scala` covers
+  each status on a trapped-stones position and a solver-verified corner seki.
+  Solved once with 2.2, as the note suggested.
 
-- [ ] **2.2 Life-and-death for scoring.**  Dead stones are not removed before
-  scoring, and `final_score` can therefore disagree with a human count.  The
-  engine plays legally and terminates, but its score is optimistic.
-  *Where:* `Board.scala` scoring, `GTP.scala` `final_score`/`final_status_list`.
-  *Done when:* a position with a clearly dead group scores as if those stones
-  were captured, and `BoardTest.scala` asserts it.
-  *Approach:* a small Benson-style or search-based life-and-death pass is
-  enough; full Japanese-rules resolution is a research project.
+- [x] **2.2 Life-and-death for scoring.**  Done 2026-09-11: new
+  `LifeDeath.scala` (Benson unconditional life, territory-control rule,
+  tactical proofs via `Tactics`), `BoardState.score` removes dead stones and
+  counts them as prisoners, plus `deadStones`/`removeDeadStones`.  `BoardTest`
+  asserts a walled-in group scores exactly as if captured by hand (B+79 area,
+  B+65 territory on the fixture).  Deliberate limits, documented in the file:
+  the per-rollout path proves tactically only for enclosed ≤2-liberty groups
+  and counts open fights as they stand; ko-active positions decline proofs.
+  Classifications were cross-checked with an independent Python port and an
+  exhaustive seki solver.  Not yet executed here; needs `make check`.
 
 - [ ] **2.3 Expose the rule set.**  `RuleSet` (Area/Territory) exists and is
   written to and read from SGF, but no entry point can set it.
@@ -123,17 +126,18 @@ most valuable task in this file.
 
 Ordered by value per unit of effort.
 
-- [ ] **3.1 Reuse the search tree between moves.**  Every move currently rebuilds
-  the tree from scratch, throwing away everything learned about the position.
-  This is the largest strength-per-line change available.
-  *Where:* `Search.scala` — `SearchSession` needs a `advanceTo(point)` that
-  re-roots on the child matching the played move and keeps its `visits` and
-  `totalValue`; `CLI.scala`/`GTP.scala`/`SelfPlay.scala` call it after each move.
-  *Watch out:* superko history, virtual-loss bookkeeping, and the parent links
-  that RAVE walks.
-  *Done when:* a benchmark shows fewer playouts give the same move quality, and
-  `SearchTest.scala` asserts re-rooting preserves the best move on a fixed
-  position.
+- [x] **3.1 Reuse the search tree between moves.**  Done 2026-09-11:
+  `SearchSession.advanceTo(point)` re-roots on the played child, keeping
+  visits, values and RAVE stats (superko history travels inside the child's
+  state; virtual loss always cancels per iteration so none is in flight;
+  stale parent links are harmless — nothing walks them).  Wired into
+  `CLI.scala`, `GTP.scala` and `SelfPlay.scala` (advance on every move, fresh
+  session when the move was unexplored, reset on undo/load/handicap/komi).
+  `SearchTest` asserts state/visits/history preservation and continued search
+  legality on a fixed position.  No benchmark yet: fewer playouts for the
+  same quality is expected but unmeasured — see 5.3.  The batcher now closes
+  per session (`close()`), not per `runPlayouts`, so reused sessions stay
+  batched.  Not yet executed here; needs `make check`.
 
 - [ ] **3.2 Pondering.**  Think on the opponent's time.  The clock side is
   already built: `Clock.timeForMove` and the search's nanosecond deadline take a
@@ -157,15 +161,20 @@ Ordered by value per unit of effort.
   *Done when:* a book built from a directory of SGF files answers the first few
   moves and falls through to search otherwise.
 
-- [ ] **3.5 Alpha-beta tactical supplement (DESIGN.md §2.6) — deliberately
-  deferred.**  There is a marker comment in `Search.scala` explaining why: a
-  trustworthy Go alpha-beta needs its own capture-race move generation, threat
-  extensions and a static exchange evaluator, and a half-built one is worse than
-  none.
-  *Where:* a new `Tactics.scala`, opted into from `SearchConfig`, aimed at
-  semeai and tsumego subproblems rather than the whole game.
-  *Done when:* it finds forced captures that MCTS needs thousands of playouts
-  for, and never returns a losing line as winning.
+- [x] **3.5 Alpha-beta tactical supplement (DESIGN.md §2.6).**  Done
+  2026-09-11: new `Tactics.scala` — depth-bounded alpha-beta over the local
+  region around one victim group, opted into with
+  `SearchConfig(tactics = true, tacticsDepth = 8)`, which boosts a proven
+  capture's prior before the search (the search still decides).  `Some(move)`
+  is a proof (every in-region defender reply still loses the group); `None`
+  is "not proven".  Open fights, big regions and active ko are declined, and
+  every call has a node budget (100k).  `TacticsTest.scala` (20 checks):
+  hanging-group proof, walled-in proof with a tightening first move, `None`
+  on empty/open/ko/seki positions (seki shape found by an exhaustive solver),
+  prior-boost and boosted-search integration.  One re-read bug fixed
+  (`groupAt(original.head)` misfired on partial captures).  The old
+  "deliberately not implemented" marker in `Search.scala` now points here.
+  Not yet executed here; needs `make check`.
 
 ## 4. Learning pipeline (DESIGN.md Phase 4)
 
@@ -267,10 +276,13 @@ Not oversights; recorded so they are not rediscovered as "bugs".
 
 ## Suggested next three
 
-1. **1.1** — verify ONNX on an unrestricted machine.  It is the only part of the
-   scaffold with no execution evidence at all, and it is the thing a reader will
-   try first.
-2. **1.2** — an `EvaluateTest.scala`.  It is the biggest untested surface, and
-   feature-plane bugs are invisible.
-3. **3.1** — tree reuse between moves.  The largest strength gain available, and
-   it is contained inside `SearchSession`.
+1. **Run `make check` on an unrestricted machine.**  Everything in this batch
+   (1.2, 2.1, 2.2, 3.1, 3.5) is written and cross-checked but not yet
+   executed: `scala-cli` cannot start in the sandbox this was built in.
+   `make test-python` already passes (12 pass, 1 skipped without NumPy).
+2. **1.1** — verify ONNX on an unrestricted machine.  Still the only part of
+   the project with no execution evidence at all, and the thing a reader will
+   try first.  Needs a real exported model (see 4.2).
+3. **5.3** — the benchmark harness.  It would turn 3.1's expected win ("fewer
+   playouts, same quality") and 3.5's ("captures in dozens, not thousands")
+   from reasoning into measurements.

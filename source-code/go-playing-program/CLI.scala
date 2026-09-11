@@ -6,6 +6,7 @@ package go
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 import scala.collection.mutable
+import scala.concurrent.duration.{FiniteDuration, TimeUnit}
 
 // ============================================================================
 // CLI.scala -- the interactive Go board (design doc section 4.2).
@@ -59,8 +60,32 @@ final class CliApp(
   private var lastSearch: Option[SearchResult] = None
   private var running = true
   private val engineName: String = network.name
+  /**
+   * The persistent search tree, re-rooted on every move played.  Anything
+   * that rewrites the position (undo, new, load, komi) resets it instead.
+   */
+  private var searchSession: SearchSession | Null = null
 
   def currentState: BoardState = state
+
+  private def sessionFor(position: BoardState): SearchSession =
+    val current = searchSession
+    if current != null && current.root.state.samePosition(position) then current
+    else
+      if current != null then current.close()
+      val fresh = Search.newSession(position, network, config)
+      searchSession = fresh
+      fresh
+
+  private def advanceOrReset(move: Point): Unit =
+    val current = searchSession
+    if current != null && !current.advanceTo(move) then
+      current.close()
+      searchSession = null
+
+  private def resetSession(): Unit =
+    if searchSession != null then searchSession.close()
+    searchSession = null
 
   // --------------------------------------------------------------------------
   // Rendering
@@ -185,6 +210,7 @@ final class CliApp(
     state.play(point) match
       case Right(next) =>
         push(next)
+        advanceOrReset(point)
         Right(())
       case Left(reason) => Left(reason)
 
@@ -192,12 +218,20 @@ final class CliApp(
     if state.isTerminal then Left("the game is over")
     else
       val position = state
+      val session = sessionFor(position)
       val started = System.nanoTime()
-      val result = Search.search(position, network, config)
+      session.runPlayouts(
+        config.playouts,
+        config.timeLimit.map(t => started + t.toNanos)
+      )
+      val result = session.result(
+        FiniteDuration(System.nanoTime() - started, TimeUnit.NANOSECONDS)
+      )
       lastSearch = Some(result)
       position.play(result.move) match
         case Right(next) =>
           push(next)
+          session.advanceTo(result.move)
           if verbose then
             val nps =
               if result.elapsed.toMillis > 0 then result.playouts * 1000L / result.elapsed.toMillis else 0L
@@ -217,6 +251,7 @@ final class CliApp(
     state = BoardState.initial(size, newKomi)
     history = Vector(state)
     lastSearch = None
+    resetSession()
 
   // --------------------------------------------------------------------------
   // Command handling
@@ -235,6 +270,7 @@ final class CliApp(
         case "board" | "show" | "b" => () // the board is redrawn every turn
         case "pass" =>
           push(state.playPass)
+          advanceOrReset(Point.Pass)
           println(paint(Ansi.Dim, s"${state.toMove.opposite} passes"))
         case "resign" =>
           val loser = state.toMove
@@ -246,6 +282,7 @@ final class CliApp(
             history = history.dropRight(1)
             state = history.last
             lastSearch = None
+            resetSession()
         case "genmove" | "g" | "move" => engineMove()
         case "new" =>
           val size = args.headOption.flatMap(_.toIntOption).getOrElse(boardSize)
@@ -258,6 +295,7 @@ final class CliApp(
               komi = k
               state = state.copyWithKomi(k)
               history = history.updated(history.length - 1, state)
+              resetSession()
             case None => println(paint(Ansi.Warn, "usage: komi <number>"))
         case "score" | "final" =>
           val s = state.score

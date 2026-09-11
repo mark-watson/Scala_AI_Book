@@ -680,43 +680,42 @@ final class BoardState private[go] (
    * Ownership of each empty point after a flood fill of the empty regions:
    * `1`/`2` for a region touching only Black/White, `0` for neutral (dame).
    */
-  def territory: Array[Byte] =
-    val owner = new Array[Byte](area)
-    val seen = new Array[Boolean](area)
-    val nbrs = Geometry.neighbors(size)
-    var i = 0
-    while i < area do
-      if cells(i) == 0 && !seen(i) then
-        val region = mutable.ArrayBuffer.empty[Int]
-        val stack = mutable.ArrayBuffer(i)
-        seen(i) = true
-        var touchesBlack = false
-        var touchesWhite = false
-        while stack.nonEmpty do
-          val cur = stack.remove(stack.length - 1)
-          region += cur
-          val adj = nbrs(cur)
-          var k = 0
-          while k < adj.length do
-            val n = adj(k)
-            cells(n) match
-              case 1 => touchesBlack = true
-              case 2 => touchesWhite = true
-              case _ =>
-                if !seen(n) then
-                  seen(n) = true
-                  stack += n
-            k += 1
-        val o: Byte =
-          if touchesBlack && !touchesWhite then 1
-          else if touchesWhite && !touchesBlack then 2
-          else 0
-        var r = 0
-        while r < region.length do
-          owner(region(r)) = o
-          r += 1
-      i += 1
-    owner
+  def territory: Array[Byte] = BoardState.territoryOf(cells, size)
+
+  /** Every stone that is dead in this position (see [[LifeDeath]]). */
+  def deadStones: Set[Point] = LifeDeath.deadStones(this)
+
+  /**
+   * The position with dead stones removed and counted as prisoners.
+   * Returns `this` when nothing is dead, so the common case allocates nothing.
+   */
+  def removeDeadStones: BoardState =
+    val dead = LifeDeath.deadStones(this)
+    if dead.isEmpty then this
+    else
+      val next = cells.clone()
+      var hash = zobristHash
+      var (byBlack, byWhite) = captures
+      for p <- dead do
+        val color = Color.fromByte(next(p.index))
+        if color.isStone then
+          hash ^= Zobrist.stone(color, p)
+          next(p.index) = 0
+          if color == Color.Black then byWhite += 1 else byBlack += 1
+      new BoardState(
+        size = size,
+        cells = next,
+        koPoint = None,
+        captures = (byBlack, byWhite),
+        moveHistory = moveHistory,
+        toMove = toMove,
+        komi = komi,
+        ruleSet = ruleSet,
+        zobristHash = hash,
+        positionHistory = positionHistory + hash,
+        passes = passes,
+        resigned = resigned
+      )
 
   /** Counts the position under the configured [[RuleSet]]. */
   def score: Score =
@@ -727,27 +726,43 @@ final class BoardState private[go] (
         case Color.Black => Score(0.0, Double.MaxValue)
         case _           => Score(Double.MaxValue, 0.0)
     else
-      val terr = territory
-      var blackStones = 0
-      var whiteStones = 0
-      var blackTerr = 0
-      var whiteTerr = 0
-      var i = 0
-      while i < area do
-        cells(i) match
-          case 1 => blackStones += 1
-          case 2 => whiteStones += 1
-          case _ =>
-            terr(i) match
-              case 1 => blackTerr += 1
-              case 2 => whiteTerr += 1
-              case _ => ()
-        i += 1
-      val (byBlack, byWhite) = captures
-      ruleSet match
-        case RuleSet.Area => Score(blackStones + blackTerr, whiteStones + whiteTerr + komi)
-        case RuleSet.Territory =>
-          Score(blackTerr + byBlack, whiteTerr + byWhite + komi)
+      // Dead stones are removed before counting, so a group that cannot live
+      // does not own points it merely stands on.  The analysis is gated on
+      // short liberties (see LifeDeath.deadStonesForScore); settled positions
+      // score exactly as before and pay nothing extra.
+      val dead = LifeDeath.deadStonesForScore(this)
+      if dead.isEmpty then count(cells, captures)
+      else
+        val cleared = cells.clone()
+        var (byBlack, byWhite) = captures
+        for p <- dead do
+          if Color.fromByte(cleared(p.index)) == Color.Black then byWhite += 1
+          else byBlack += 1
+          cleared(p.index) = 0
+        count(cleared, (byBlack, byWhite))
+
+  private def count(grid: Array[Byte], prisoners: (Int, Int)): Score =
+    val terr = BoardState.territoryOf(grid, size)
+    var blackStones = 0
+    var whiteStones = 0
+    var blackTerr = 0
+    var whiteTerr = 0
+    var i = 0
+    while i < area do
+      grid(i) match
+        case 1 => blackStones += 1
+        case 2 => whiteStones += 1
+        case _ =>
+          terr(i) match
+            case 1 => blackTerr += 1
+            case 2 => whiteTerr += 1
+            case _ => ()
+      i += 1
+    val (byBlack, byWhite) = prisoners
+    ruleSet match
+      case RuleSet.Area => Score(blackStones + blackTerr, whiteStones + whiteTerr + komi)
+      case RuleSet.Territory =>
+        Score(blackTerr + byBlack, whiteTerr + byWhite + komi)
 
   /**
    * The winner, or `None` for a draw.  Resignation short-circuits the count.
@@ -860,3 +875,48 @@ object BoardState:
     for (color, p) <- moves do
       state = state.place(p, color).fold(err => state, identity)
     state
+
+  /**
+   * Ownership of each empty point in `cells` (`1`/`2` for Black/White-only
+   * regions, `0` for dame).  The instance method [[BoardState.territory]]
+   * delegates here; life-and-death analysis calls this directly on grids with
+   * a candidate group lifted off.
+   */
+  private[go] def territoryOf(cells: Array[Byte], size: Int): Array[Byte] =
+    val area = size * size
+    val owner = new Array[Byte](area)
+    val seen = new Array[Boolean](area)
+    val nbrs = Geometry.neighbors(size)
+    var i = 0
+    while i < area do
+      if cells(i) == 0 && !seen(i) then
+        val region = mutable.ArrayBuffer.empty[Int]
+        val stack = mutable.ArrayBuffer(i)
+        seen(i) = true
+        var touchesBlack = false
+        var touchesWhite = false
+        while stack.nonEmpty do
+          val cur = stack.remove(stack.length - 1)
+          region += cur
+          val adj = nbrs(cur)
+          var k = 0
+          while k < adj.length do
+            val n = adj(k)
+            cells(n) match
+              case 1 => touchesBlack = true
+              case 2 => touchesWhite = true
+              case _ =>
+                if !seen(n) then
+                  seen(n) = true
+                  stack += n
+            k += 1
+        val o: Byte =
+          if touchesBlack && !touchesWhite then 1
+          else if touchesWhite && !touchesBlack then 2
+          else 0
+        var r = 0
+        while r < region.length do
+          owner(region(r)) = o
+          r += 1
+      i += 1
+    owner

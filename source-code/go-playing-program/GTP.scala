@@ -51,6 +51,34 @@ final class GtpEngine(
   private val clocks = mutable.Map.empty[Color, Clock]
   /** Search statistics from the last genmove, for `debug_search`. */
   private var lastSearch: Option[SearchResult] = None
+  /**
+   * The persistent search tree, re-rooted on every played move.  Any command
+   * that rewrites the position out from under it (undo, loadsgf, handicap,
+   * ...) resets it; the next genmove then starts a fresh tree.
+   */
+  private var searchSession: SearchSession | Null = null
+
+  /** Releases the search tree, if any. */
+  def close(): Unit = resetSession()
+
+  private def sessionFor(position: BoardState, effective: SearchConfig): SearchSession =
+    val current = searchSession
+    if current != null && current.root.state.samePosition(position) then current
+    else
+      if current != null then current.close()
+      val fresh = Search.newSession(position, network, effective)
+      searchSession = fresh
+      fresh
+
+  private def advanceOrReset(move: Point): Unit =
+    val current = searchSession
+    if current != null && !current.advanceTo(move) then
+      current.close()
+      searchSession = null
+
+  private def resetSession(): Unit =
+    if searchSession != null then searchSession.close()
+    searchSession = null
 
   def currentState: BoardState = state
 
@@ -126,12 +154,14 @@ final class GtpEngine(
         state = BoardState.initial(n, komi)
         history = Vector(state)
         clocks.clear()
+        resetSession()
         Right("")
 
   private def clearBoard(): Either[String, String] =
     state = BoardState.initial(boardSize, komi)
     history = Vector(state)
     lastSearch = None
+    resetSession()
     Right("")
 
   private def setKomi(args: Vector[String]): Either[String, String] =
@@ -141,6 +171,7 @@ final class GtpEngine(
         komi = k
         state = state.copyWithKomi(k)
         history = history.updated(history.length - 1, state)
+        resetSession()
         Right("")
 
   private def play(args: Vector[String]): Either[String, String] =
@@ -157,6 +188,7 @@ final class GtpEngine(
         case Right(next) =>
           state = next
           history = history :+ state
+          advanceOrReset(vertex)
           Right("")
         case Left(reason) => Left(s"illegal move: $reason")
 
@@ -167,7 +199,15 @@ final class GtpEngine(
     val position = state.withToMove(color)
     val budget = budgetFor(color)
     val effective = budget.map(b => config.copy(timeLimit = Some(b))).getOrElse(config)
-    val result = Search.search(position, network, effective)
+    val session = sessionFor(position, effective)
+    val started = System.nanoTime()
+    session.runPlayouts(
+      effective.playouts,
+      effective.timeLimit.map(t => started + t.toNanos)
+    )
+    val result = session.result(
+      FiniteDuration(System.nanoTime() - started, java.util.concurrent.TimeUnit.NANOSECONDS)
+    )
     lastSearch = Some(result)
     recordTime(color, result.elapsed)
 
@@ -177,12 +217,14 @@ final class GtpEngine(
 
     if move == "resign" then
       state = position.resign(color)
+      resetSession()
       Right("resign")
     else
       position.place(result.move, color) match
         case Right(next) =>
           state = next
           history = history :+ state
+          advanceOrReset(result.move)
           Right(move)
         case Left(reason) => Left(s"search produced an illegal move: $reason")
 
@@ -191,49 +233,31 @@ final class GtpEngine(
     else
       history = history.dropRight(1)
       state = history.last
+      resetSession()
       Right("")
 
   private def finalScore: String = state.resultString
 
   /**
-   * A deliberately conservative `final_status_list`.
-   *
-   * Deciding life and death properly is a search problem in its own right, so
-   * this reports only stones that are unconditionally alive by the simplest
-   * possible test: a group with at least two real eyes is `alive`, everything
-   * else is left out.  GUIs tolerate a short list; a wrong list is worse than
-   * a cautious one.
+   * Life-and-death status, decided by [[LifeDeath]]: Benson unconditional
+   * life for `alive`, forced-capture proofs and territory control for `dead`,
+   * and mutually-unsettled neighbours for `seki`.  `black` and `white` list
+   * every group of that colour.  One group per line, as GTP expects.
    */
   private def finalStatusList(args: Vector[String]): Either[String, String] =
-    val what = args.headOption.getOrElse("").toLowerCase
-    if what != "alive" then Right("")
-    else
-      // One group per line, which is how GTP expects a status list.
-      val alive = aliveGroups
+    val groups = args.headOption.getOrElse("").toLowerCase match
+      case "alive" => LifeDeath.aliveGroups(state)
+      case "dead"  => LifeDeath.deadGroups(state)
+      case "seki"  => LifeDeath.sekiGroups(state)
+      case "black" => state.groups.values.toVector.distinct.filter(_.color == Color.Black)
+      case "white" => state.groups.values.toVector.distinct.filter(_.color == Color.White)
+      case other   => return Left(s"unknown status: $other (try alive, dead or seki)")
+    Right(
+      groups
         .map(group => group.stones.map(_.toGtp(boardSize)).toVector.sorted.mkString(" "))
         .filter(_.nonEmpty)
-      Right(alive.mkString("\n"))
-
-  /** Groups with two or more separate one-point eyes are certainly alive. */
-  private def aliveGroups: Vector[Group] =
-    val seen = mutable.Set.empty[Point]
-    val out = mutable.ArrayBuffer.empty[Group]
-    for
-      group <- state.groups.values.toVector.distinct
-      if !group.stones.exists(seen.contains)
-    do
-      group.stones.foreach(seen += _)
-      val eyes = eyeCount(group)
-      if eyes >= 2 then out += group
-    out.toVector
-
-  /** Counts the distinct one-point eyes inside a group's territory. */
-  private def eyeCount(group: Group): Int =
-    val candidates = group.liberties.filter { p =>
-      val nbrs = state.neighborsOf(p)
-      nbrs.nonEmpty && nbrs.forall(q => group.stones.contains(q))
-    }
-    candidates.size
+        .mkString("\n")
+    )
 
   // --------------------------------------------------------------------------
   // Handicap
@@ -246,6 +270,7 @@ final class GtpEngine(
       case Some(points) =>
         state = state.setupStones(points.map(p => (p, Color.Black))).withToMove(Color.White)
         history = history :+ state
+        resetSession()
         Right(points.map(_.toGtp(boardSize)).mkString(" "))
 
   private def placeFreeHandicap(args: Vector[String]): Either[String, String] =
@@ -259,6 +284,7 @@ final class GtpEngine(
       val points = parsed.flatten
       state = state.setupStones(points.map(p => (p, Color.Black))).withToMove(Color.White)
       history = history :+ state
+      resetSession()
       Right("")
 
   // --------------------------------------------------------------------------
@@ -337,6 +363,7 @@ final class GtpEngine(
             state = record.copy(moves = record.moves.take(limit)).toBoard
           case _ => ()
         history = Vector(state)
+        resetSession()
         Right("")
 
   // --------------------------------------------------------------------------
@@ -484,6 +511,7 @@ object GTP:
             println()
             System.out.flush()
             if log then System.err.println(s"< ?$error")
+    engine.close()
 
   val usage: String =
     """Usage: scala-cli run . --main-class go.GTP -- [options]

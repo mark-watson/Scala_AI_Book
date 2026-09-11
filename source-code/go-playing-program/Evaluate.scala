@@ -363,9 +363,11 @@ object HeuristicEval:
   /**
    * Estimates the position from the point of view of `state.toMove` in
    * `[-1, +1]`, by comparing how strongly each empty point leans to each side.
+   * Komi is subtracted from Black's balance first, so a balanced board with
+   * komi correctly reads as better for White.
    */
   def influenceValue(state: BoardState): Float =
-    val balance = balanceFor(state, Color.Black)
+    val balance = balanceFor(state, Color.Black) - state.komi
     val fromBlack = math.tanh(balance / (0.6 * state.area))
     val signed = if state.toMove == Color.Black then fromBlack else -fromBlack
     signed.toFloat

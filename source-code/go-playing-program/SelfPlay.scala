@@ -188,45 +188,54 @@ object SelfPlay:
     var resigned = false
     var moveNumber = 0
 
-    while !state.isTerminal && moveNumber < config.effectiveMaxMoves && !resigned do
-      val mover = state.toMove
-      val session = Search.newSession(state, network, config.searchConfig)
+    // One session for the whole game: after each move the tree is re-rooted
+    // on the move actually played, so every search starts where the last one
+    // left off instead of from scratch.
+    var session = Search.newSession(state, network, config.searchConfig)
+    try
+      while !state.isTerminal && moveNumber < config.effectiveMaxMoves && !resigned do
+        val mover = state.toMove
 
-      // Root noise is what stops a generation of games from collapsing onto a
-      // single opening, which would starve the training set of variety.
-      session.applyRootNoise(rng)
-      session.runPlayouts(config.playouts)
+        // Root noise is what stops a generation of games from collapsing onto
+        // a single opening, which would starve the training set of variety.
+        session.applyRootNoise(rng)
+        session.runPlayouts(config.playouts)
 
-      val temperature =
-        if moveNumber < config.tempDropMove then config.temperature else config.lateTemperature
-      val move = session.sampleMove(math.max(temperature, 0.0), rng)
-      val winRate = session.winRate
+        val temperature =
+          if moveNumber < config.tempDropMove then config.temperature else config.lateTemperature
+        val move = session.sampleMove(math.max(temperature, 0.0), rng)
+        val winRate = session.winRate
 
-      recorded += TrainingExample(
-        featurePlanes = FeaturePlanes.encode(state),
-        mctsPolicy = policyVector(session, state),
-        outcome = 0f, // filled in once the game is over
-        move = move,
-        moveNumber = moveNumber,
-        toMove = mover,
-        boardSize = config.boardSize,
-        searchValue = winRate.toFloat
-      )
+        recorded += TrainingExample(
+          featurePlanes = FeaturePlanes.encode(state),
+          mctsPolicy = policyVector(session, state),
+          outcome = 0f, // filled in once the game is over
+          move = move,
+          moveNumber = moveNumber,
+          toMove = mover,
+          boardSize = config.boardSize,
+          searchValue = winRate.toFloat
+        )
 
-      state.play(move) match
-        case Right(next) => state = next
-        case Left(_)     => state = state.playPass
+        val (next, playedMove) = state.play(move) match
+          case Right(n) => (n, move)
+          case Left(_)  => (state.playPass, Point.Pass)
+        state = next
+        if !session.advanceTo(playedMove) then
+          session.close()
+          session = Search.newSession(state, network, config.searchConfig)
 
-      played += ((mover, move))
-      moveNumber += 1
+        played += ((mover, move))
+        moveNumber += 1
 
-      // Resign only once the estimate can be trusted; a premature resignation
-      // would poison the training data with a wrong label.
-      config.resignThreshold match
-        case Some(threshold) if moveNumber >= config.resignMinMoves && winRate < threshold =>
-          resigned = true
-          state = state.resign(mover)
-        case _ => ()
+        // Resign only once the estimate can be trusted; a premature
+        // resignation would poison the training data with a wrong label.
+        config.resignThreshold match
+          case Some(threshold) if moveNumber >= config.resignMinMoves && winRate < threshold =>
+            resigned = true
+            state = state.resign(mover)
+          case _ => ()
+    finally session.close()
 
     val winner = state.winner
     // z is from the perspective of whoever was to move in that position.

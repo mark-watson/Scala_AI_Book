@@ -1,0 +1,1 @@
+- write a new chapter on category theory and deep learning

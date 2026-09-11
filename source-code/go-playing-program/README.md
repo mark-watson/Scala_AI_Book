@@ -422,15 +422,21 @@ COURSIER_CACHE=/tmp/coursier make onnx-check MODEL=models/policy-9x9.onnx
 
 ## Testing
 
-Six suites, 307 checks, no test framework:
+Eight suites, 465 checks, no test framework, plus the Python reader tests:
 
 ```
-boardTest:      56 checks passed     rules, captures, ko, superko, scoring
-searchTest:     50 checks passed     tactics found, eyes never filled, budgets
+boardTest:      70 checks passed     rules, captures, ko, superko, scoring, life-and-death
+evalTest:       67 checks passed     feature planes, policy shape, value perspective, komi
+searchTest:     60 checks passed     tactics found, eyes never filled, budgets, tree reuse
+tacticsTest:    20 checks passed     proven captures, declined open fights and ko
 sgfTest:        38 checks passed     round trips, variations, handicap, errors
 selfPlayTest:   41 checks passed     shapes, labels, binary format, SGF
-gtpTest:        99 checks passed     every command, including its failure path
+gtpTest:       146 checks passed     every command, including its failure path and statuses
 cliTest:        23 checks passed     column letters over the points, board shape
+```
+
+```bash
+make test-python   # 13 tests for python/load_selfplay.py (stdlib only)
 ```
 
 They are ordinary `@main` methods, so each one is also runnable directly:
@@ -451,9 +457,10 @@ Two deliberate properties of these tests:
   filled, a budget is respected, the game terminates.  They never assert a
   specific move ordering, and where a result must be reproducible the search is
   pinned to one thread and a fixed seed.
-- **They are fast.**  Small boards and small playout budgets keep the five
-  suites to about half a minute, because a test suite you avoid running is
-  worthless.  Compiling from scratch takes longer than testing.
+- **They are fast.**  Small boards and small playout budgets keep the suites
+  to about a minute (the tactical proofs are node-budgeted), because a test
+  suite you avoid running is worthless.  Compiling from scratch takes longer
+  than testing.
 
 ## Performance
 
@@ -486,18 +493,19 @@ closely.  Where it differs, the change is deliberate:
 | `opaque type Color = Byte` | `enum Color { Empty, Black, White }` | An enum is safer and more idiomatic Scala 3, and gives exhaustive matching and `ordinal` for free. `Point` remains an `opaque type` as specified. |
 | `AtomicDouble` for node values | `java.util.concurrent.atomic.DoubleAdder` | `AtomicDouble` is not in the JDK. `DoubleAdder` is lock-free and made for exactly this accumulate-from-many-threads pattern. |
 | Ko tracked by a ko point | Ko point **and** positional superko via `positionHistory: Set[Long]` | The hash-based rule catches triple ko and is no harder to check; the ko point is still recorded for feature planes and display. |
-| The file list in §4.1 | Plus `project.scala`, `Args.scala`, `Demo.scala`, five test files, `python/load_selfplay.py` | `project.scala` holds shared build settings, `Args.scala` is the one argument parser all three entry points share, and the tests and demos are what make each subsystem independently runnable. |
+| The file list in §4.1 | Plus `project.scala`, `Args.scala`, `Demo.scala`, `Tactics.scala`, `LifeDeath.scala`, eight test files, `python/load_selfplay.py` | `project.scala` holds shared build settings, `Args.scala` is the one argument parser all three entry points share, and the tests and demos are what make each subsystem independently runnable. |
 | A Python training pipeline in Phase 4 | `python/load_selfplay.py` only | The reader and the format are here and verified; the model architecture and training loop belong with whichever framework you choose. |
 | ONNX Runtime as a normal dependency | Reflective, opt-in, added by the `onnx-*` make targets | Keeps the default build dependency-free and fast to compile, and the engine still runs without a model. |
-| §2.6 alpha-beta comparison | Not implemented | Deliberately out of scope for the MCTS engine; there is a marked placeholder in `Search.scala` explaining what would go there. |
+| §2.6 alpha-beta comparison | `Tactics.scala`, opted into with `SearchConfig(tactics = true)` | A narrow local reader for forced captures, not a full-game search; the search still decides, tactics only boosts the proven move's prior. |
 
 Two smaller implementation notes:
 
 - `HeuristicNetwork` reserves its pass probability *inside* the distribution, so
   the policy always sums to exactly 1.  This matters because the root-noise
   renormalisation and the training targets both assume it.
-- Scoring does not remove dead stones.  Both players are assumed to have played
-  out the game; `isOwnEye` is what keeps the engine from filling its own eyes
+- Scoring removes dead stones (`LifeDeath`), but only enclosed ones on the
+  per-rollout path: an open fight left on the board at pass-pass is counted as
+  it stands.  `isOwnEye` is what keeps the engine from filling its own eyes
   and lets games finish naturally.
 
 ## What is not implemented
@@ -506,11 +514,6 @@ The short version is below.  `TODOs.md` is the working list: it adds the items
 that are gaps rather than omissions, says where each piece belongs, and gives
 each one a "done when" so a task can be picked up cold.
 
-- **Alpha-beta search** (DESIGN.md §2.6).  The MCTS engine needs no such
-  baseline, so this is left as a documented gap rather than a half-built one.
-- **Proper life-and-death for `final_status_list`.**  GTP's `final_status_list
-  alive` reports only groups with two or more genuine eyes — a conservative
-  answer, because a wrong list is worse than a short one.
 - **Distributed self-play.**  Games are generated one at a time on one machine;
   the parallelism is inside each search.
 - **Pondering** (thinking on the opponent's time).  `Clock.timeForMove` and the
