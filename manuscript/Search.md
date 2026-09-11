@@ -437,7 +437,6 @@ We have already seen example output for the three examples. Now we look at the t
   )
 ```
 
+We already looked at the code to set up the maze and tic-tac-toe examples.
+
 Running the project via `scala-cli run .` produces outputs we saw previously showing the DFS and BFS paths, the solved maze grid (drawing a path using `.`), and a complete optimal Tic-Tac-Toe game where two computers play each other to a draw. 
-
-
-
