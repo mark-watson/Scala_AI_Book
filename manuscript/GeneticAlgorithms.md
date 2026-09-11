@@ -2,7 +2,12 @@
 
 Genetic Algorithms (GAs) are optimization and search techniques inspired by the principles of natural selection and genetics. They work by evolving a population of candidate solutions (called chromosomes) over successive generations using biological operators such as selection, crossover, and mutation.
 
-In this chapter, we build an extensible genetic algorithm framework in Scala 3 and apply it to find the maximum of a complex mathematical function.
+In this chapter, we build an extensible genetic algorithm framework in Scala 3 and apply it in a toy (pedantic) example to find the maximum of a complex mathematical function. More practical use cases are:
+
+- Genetic algorithms optimize complex logistics, such as finding the most efficient delivery routes for shipping fleets to minimize fuel consumption.
+- They are also used in automated scheduling systems to rapidly generate conflict-free timetables for large universities or hospital shifts.
+
+In my old book "C++ Power Paradigms" I used a genetic algorithm to search for good values for weights in recurrent neural networks instead of training with steepest descent (this only works for smaller recurrent networks).
 
 All code is in `source-code/genetic-algorithms`.
 
@@ -150,7 +155,7 @@ GAs can easily get stuck in local optima if the population loses diversity. As s
 
 The loop runs from the worst chromosome down to index 4, comparing each against all earlier ones, so it preserves the top few elite members and disturbs only lower-ranked duplicates. This explicit push for diversity is a direct defense against premature convergence.
 
-## Example: Maximizing a Complex Function
+## A Simple Example: Maximizing a Complex Function
 
 We demonstrate our framework by searching for the maximum of the non-linear function:
 
