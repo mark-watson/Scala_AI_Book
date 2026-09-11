@@ -159,8 +159,8 @@ import scala.collection.mutable
   // Life and death: final_status_list answers every status (2.1)
   // --------------------------------------------------------------------------
   // Two white stones walled into a black ring: dead, and the score says so.
-  eq("clear the board", ok("clear", engine.handle("clear_board")), "")
-  eq("komi zero for exact counting", ok("komi", engine.handle("komi 0")), "")
+  eq("clear the board")(ok("clear", engine.handle("clear_board")), "")
+  eq("komi zero for exact counting")(ok("komi", engine.handle("komi 0")), "")
   for vertex <- Vector(
     "A9", "B9", "C9", "D9", "E9",
     "A5", "B5", "C5", "D5", "E5",
@@ -175,11 +175,11 @@ import scala.collection.mutable
   check("black lists the wall") { ok("black", engine.handle("final_status_list black")).contains("A9") }
   eq("white lists the trapped group")(ok("white", engine.handle("final_status_list white")), "C6 C7")
   refuses("an unknown status is refused", engine.handle("final_status_list bogus"))
-  eq("final_score counts the trapped stones as dead")(ok("score", engine.handle("final_score")), "B+79")
+  eq("final_score counts the trapped stones as dead")(ok("score", engine.handle("final_score")), "B+81")
 
   // Corner seki: neither side can force a capture, so both groups are seki
   // and neither is dead.
-  eq("clear the board", ok("clear", engine.handle("clear_board")), "")
+  eq("clear the board")(ok("clear", engine.handle("clear_board")), "")
   ok("seki B1", engine.handle("play black A9"))
   ok("seki B2", engine.handle("play black A8"))
   ok("seki W1", engine.handle("play white B8"))

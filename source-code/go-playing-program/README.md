@@ -389,7 +389,7 @@ Start with `make onnx-check`: it reports whether ONNX Runtime is on the
 classpath and evaluates the opening position once, which catches a mismatch in
 the model's input or output names before a game begins.
 
-These targets add `--dep com.microsoft.onnxruntime:onnxruntime:1.20.0`
+These targets add `--dep com.microsoft.onnxruntime:onnxruntime:1.29.0`
 (override with `ONNX_VERSION=`).  To export a model from PyTorch:
 
 ```python

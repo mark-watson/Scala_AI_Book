@@ -6,7 +6,7 @@ package go
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 import scala.collection.mutable
-import scala.concurrent.duration.{FiniteDuration, TimeUnit}
+import scala.concurrent.duration.FiniteDuration
 
 // ============================================================================
 // CLI.scala -- the interactive Go board (design doc section 4.2).
@@ -225,7 +225,7 @@ final class CliApp(
         config.timeLimit.map(t => started + t.toNanos)
       )
       val result = session.result(
-        FiniteDuration(System.nanoTime() - started, TimeUnit.NANOSECONDS)
+        FiniteDuration(System.nanoTime() - started, java.util.concurrent.TimeUnit.NANOSECONDS)
       )
       lastSearch = Some(result)
       position.play(result.move) match

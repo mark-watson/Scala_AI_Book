@@ -86,8 +86,8 @@ most valuable task in this file.
   `LifeDeath.scala` (Benson unconditional life, territory-control rule,
   tactical proofs via `Tactics`), `BoardState.score` removes dead stones and
   counts them as prisoners, plus `deadStones`/`removeDeadStones`.  `BoardTest`
-  asserts a walled-in group scores exactly as if captured by hand (B+79 area,
-  B+65 territory on the fixture).  Deliberate limits, documented in the file:
+  asserts a walled-in group scores exactly as if captured by hand (B+81 area,
+  B+67 territory on the fixture).  Deliberate limits, documented in the file:
   the per-rollout path proves tactically only for enclosed ≤2-liberty groups
   and counts open fights as they stand; ko-active positions decline proofs.
   Classifications were cross-checked with an independent Python port and an

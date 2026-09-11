@@ -23,7 +23,7 @@ import java.nio.FloatBuffer
 //   the runs that actually need a model:
 //
 //       make onnx-run MODEL=models/gen0.onnx
-//       # or: scala-cli run . --dep com.microsoft.onnxruntime:onnxruntime:1.20.0 \
+//       # or: scala-cli run . --dep com.microsoft.onnxruntime:onnxruntime:1.29.0 \
 //       #                    --main-class go.onnxCheck -- models/gen0.onnx
 //
 //   This keeps `make check` fast and offline while still giving the trained
@@ -590,7 +590,7 @@ object OnnxBridge:
        |Everything except the ONNX backend works without it.  See README.md.""".stripMargin
 
   /** The version the Makefile and docs use by default. */
-  val SupportedOnnxVersion = "1.20.0"
+  val SupportedOnnxVersion = "1.29.0"
 
   /** A live ONNX Runtime session, boxed so no ONNX type leaks into our API. */
   final class Session(private[OnnxBridge] val underlying: AnyRef, private[OnnxBridge] val env: AnyRef)
@@ -606,10 +606,16 @@ object OnnxBridge:
       val options = optionsClass.getConstructor().newInstance()
       if useCoreML then
         // Falls back silently when CoreML is unavailable (e.g. on an Intel Mac).
-        try optionsClass.getMethod("addCoreML").invoke(options)
+        try
+          try optionsClass.getMethod("addCoreML").invoke(options)
+          catch
+            case _: NoSuchMethodException =>
+              optionsClass
+                .getMethod("addCoreML", classOf[java.util.Map[?, ?]])
+                .invoke(options, java.util.Map.of())
         catch case _: Throwable => ()
-      val session = Class
-        .forName(SessionClass)
+      // `createSession` lives on the environment, not on the session class.
+      val session = envClass
         .getMethod("createSession", classOf[String], optionsClass)
         .invoke(env, modelPath, options)
       Session(session, env)
@@ -652,7 +658,10 @@ object OnnxBridge:
           // Read every output position we might need, tolerating a model with a
           // single output or an output the runtime refuses to hand over.
           Array(0, 1).map { index =>
-            try toFloatMatrix(resultClass.getMethod("get", classOf[Int]).invoke(result, Int.box(index)))
+            try
+              val fetched =
+                resultClass.getMethod("get", classOf[Int]).invoke(result, Int.box(index))
+              toFloatMatrix(unwrap(fetched))
             catch case _: Throwable => Array.empty[Array[Float]]
           }
         finally closeQuietly(result)
@@ -660,6 +669,21 @@ object OnnxBridge:
     catch
       case e: java.lang.reflect.InvocationTargetException =>
         throw new IllegalStateException(s"ONNX Runtime failed to run the model: ${rootMessage(e)}", e)
+
+  /**
+   * Unwraps the `Optional` that `OrtSession.Result.get` returns.  Older
+   * runtimes hand over the value directly; anything without `isPresent` is
+   * passed through untouched, so both shapes work.
+   */
+  private def unwrap(fetched: AnyRef): AnyRef =
+    if fetched == null then null
+    else
+      try
+        val present =
+          fetched.getClass.getMethod("isPresent").invoke(fetched).asInstanceOf[Boolean]
+        if !present then null
+        else fetched.getClass.getMethod("get").invoke(fetched).asInstanceOf[AnyRef]
+      catch case _: NoSuchMethodException => fetched
 
   /** Unwraps the value held by an `OrtSession.Result` entry into a float row. */
   def toFloatMatrix(value: AnyRef): Array[Array[Float]] =

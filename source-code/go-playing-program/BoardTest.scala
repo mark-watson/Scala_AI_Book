@@ -315,14 +315,15 @@ import scala.collection.mutable
   eq("filling every liberty captures the group")(filled.captures, (2, 0))
   eq("the score counts the trapped stones as captured")(trapped.score, filled.score)
   eq("removal scores the same as capturing")(cleared.score, filled.score)
-  // Concrete counts: 16 wall stones plus 63 points of owned emptiness under
-  // area rules; under territory rules the 63 points plus 2 prisoners.
+  // Concrete counts: 16 wall stones plus 65 points of owned emptiness (9
+  // inside plus 56 outside the 5x5 box) under area rules; under territory
+  // rules the 65 points plus 2 prisoners.
   // (Filling the liberties by hand instead would fill 5 points of Black's own
   // territory, so territory scoring rightly differs there: dame is not free.)
-  eq("area counts the wall and the whole corner")(trapped.score, Score(79.0, 0.0))
+  eq("area counts the wall and the whole corner")(trapped.score, Score(81.0, 0.0))
   eq("territory counts the corner plus 2 prisoners")(
     trapped.copyWithRules(RuleSet.Territory).score,
-    Score(65.0, 0.0)
+    Score(67.0, 0.0)
   )
 
   // --------------------------------------------------------------------------

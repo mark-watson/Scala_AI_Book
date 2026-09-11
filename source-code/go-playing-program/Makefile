@@ -64,7 +64,7 @@ COMPACT_FLAG := $(if $(COMPACT),--compact,)
 # ONNX Runtime, for playing with a trained neural network.  The jar is not a
 # dependency of the default build: the engine talks to it reflectively, so
 # everything works without it and the network is opt-in.
-ONNX_VERSION ?= 1.20.0
+ONNX_VERSION ?= 1.29.0
 ONNX_DEP := com.microsoft.onnxruntime:onnxruntime:$(ONNX_VERSION)
 MODEL ?= model.onnx
 ONNX_RUN := $(SCALA_CLI) run . $(SERVER_FLAG) --dep $(ONNX_DEP)
