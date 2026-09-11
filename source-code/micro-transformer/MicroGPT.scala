@@ -49,7 +49,7 @@ class MicroGPT(
 
   // Forward pass over one block. Returns per-position logits.
   def forward(ids: Array[Int]): Array[Array[Value]] =
-    var x = ids.map(tokenEmbed(_).map(v => Value(v.data) + Value(0.0)))
+    var x = ids.map(tokenEmbed(_))
     // Causal single-layer attention with residual.
     val headDim = nEmbd / nHead
     val attended = x.indices.map { t =>

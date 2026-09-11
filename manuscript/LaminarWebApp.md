@@ -8,6 +8,8 @@ All code is in `source-code/laminar-web-app`.
 
 Laminar skips the virtual DOM. UI state lives in Airstream observables: `Var` holds a value you can set, `Signal` reads values that shift over time, and binders like `<--` and `-->` wire signals to the page. That shape will feel known if you read the search or agent chapters: state flows one way, and each view reads only what it shows. Three sliders drive one posterior number. One text box drives one list. No callbacks to untangle.
 
+![Screen shot of example web app](laminar_web_app.jpg)
+
 Two pinned deps carry the stack: Laminar 17.2.1 for widgets plus Airstream, and scalajs-dom 2.8.1 for `dom.document`. Both live in `project.scala`, the one place directives sit:
 
 ```scala
