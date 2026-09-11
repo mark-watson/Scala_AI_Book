@@ -2,7 +2,7 @@
 
 A chat model alone can only quote what it saw in training. Its weights freeze at a knowledge cutoff, so it cannot answer questions about your private files, a product that shipped last week, or this morning's news. When it does not know, it often invents a fluent answer anyway. Retrieval-Augmented Generation (RAG) fixes both problems. Instead of trusting the model's memory, RAG fetches text for each query, adds that text to the prompt, and lets the model write from facts in hand. The model still supplies the language; the facts come from a store you control and can update in seconds.
 
-This chapter builds RAG in Scala 3 with no model downloads and no vector server. Plain TF-IDF vectors plus a BM25 term score rank the chunks, a rewrite step splits hard queries, and local Ollama writes the final answer when it runs.
+This chapter builds RAG in Scala 3 with no embedding model downloads and no vector server. Plain TF-IDF vectors plus a BM25 term score rank the chunks, a rewrite step splits hard queries, and local Ollama server uses a local LLM to write out the final answer for user queries.
 
 All code is in `source-code/rag-docs`. Sample docs on solar power, EVs, and climate are in `source-code/rag-docs/data`.
 
