@@ -1,6 +1,8 @@
 # Backpropagation Neural Networks from Scratch
 
-While modern AI often relies on massive libraries like PyTorch or TensorFlow, implementing a neural network from scratch is a powerful way to truly master the underlying mathematics of deep learning. In this chapter, we build a backpropagation neural network with one hidden layer in pure Scala 3, with zero dependencies.
+While modern Machine Learning often relies on massive libraries like PyTorch or TensorFlow, implementing a neural network from scratch is a powerful way to truly master the underlying mathematics of deep learning. Deep learning networks have many layers but the smaller two or three layer models as we implement here are still useful: in the 1980s at SAIC, I wrote a simple backpropagation neural model that we used in a bomb detector for the FAA, same technology!
+
+In this chapter, we build a backpropagation neural network with one hidden layer in pure Scala 3, with zero dependencies.
 
 Unlike traditional object-oriented implementations (which mutate weight arrays in place), we use a functional style: the network state is encapsulated in an immutable case class, and training methods return an updated copy of the network.
 
